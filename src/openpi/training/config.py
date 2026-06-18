@@ -20,7 +20,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
-import openpi.policies.wuji_policy as wuji_policy
+import openpi.policies.brainco_policy as brainco_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -375,18 +375,18 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
 
 
 @dataclasses.dataclass(frozen=True)
-class LeRobotWujiDataConfig(DataConfigFactory):
+class LeRobotBrainCoDataConfig(DataConfigFactory):
     """
-    Config for Wuji robot (dual-arm dual-dexterous-hand) dataset.
+    Config for BrainCo robot (dual-arm dual-dexterous-hand) dataset.
 
     Dataset features:
-    - observation.state: 54 dims (7 left arm + 20 left hand + 7 right arm + 20 right hand)
-    - action: 54 dims (full dimension)
+    - observation.state: 58 dims (7 left arm + 22 left hand + 7 right arm + 22 right hand)
+    - action: 58 dims (full dimension)
     - observation.images.cam_left_wrist: (480, 640, 3)
     - observation.images.cam_right_wrist: (480, 640, 3)
     - observation.images.stereo_right: (480, 640, 3)
 
-    This config uses the full 54 dimensions, requiring a model with action_dim=54.
+    This config uses the full 58 dimensions, requiring a model with action_dim=58.
     Action projection layers (action_in_proj, action_out_proj) will need to be
     initialized from scratch when loading pretrained weights.
     """
@@ -414,16 +414,16 @@ class LeRobotWujiDataConfig(DataConfigFactory):
         )
 
         data_transforms = _transforms.Group(
-            inputs=[wuji_policy.WujiInputs(model_type=model_config.model_type)],
-            outputs=[wuji_policy.WujiOutputs()],
+            inputs=[brainco_policy.BrainCoInputs(model_type=model_config.model_type)],
+            outputs=[brainco_policy.BrainCoOutputs()],
         )
 
         # Apply delta action transform if needed (for absolute action data)
-        # For Wuji: apply delta to arm joints, keep hand joints as-is
+        # For BrainCo: apply delta to arm joints, keep hand joints as-is
         if self.extra_delta_transform:
-            # Full 54D: Left arm (7) + Left hand (20) + Right arm (7) + Right hand (20)
+            # Full 58D: Left arm (7) + Left hand (22) + Right arm (7) + Right hand (22)
             # Apply delta to arms, keep hands absolute
-            delta_action_mask = _transforms.make_bool_mask(7, -20, 7, -20)
+            delta_action_mask = _transforms.make_bool_mask(7, -22, 7, -22)
 
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
@@ -1023,15 +1023,15 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     #
-    # Wuji dual-arm dual-dexterous-hand configs (54D).
+    # BrainCo dual-arm dual-dexterous-hand configs (58D).
     #
     TrainConfig(
-        # Multi-dataset training for Wuji with 54D
-        name="pi05_wuji_multi_54d",
+        # Multi-dataset training for BrainCo with 58D
+        name="pi05_brainco_multi_58d",
         checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(pi05=True, action_dim=54, action_horizon=100, max_token_len=256),
-        data=LeRobotWujiDataConfig(
-            repo_id="wuji",  # Not used when lerobot_datasets is set
+        model=pi0_config.Pi0Config(pi05=True, action_dim=58, action_horizon=100, max_token_len=256),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco",  # Not used when lerobot_datasets is set
             base_config=DataConfig(
                 prompt_from_task=True,
                 # Define multiple datasets (weights are ignored in concat mode)

@@ -1,10 +1,10 @@
-# Wuji Robot Deployment Configuration
+# BrainCo Robot Deployment Configuration
 # Unified configuration file, supporting the OpenPI control pipeline
 
 # ==============================================================================
 # Basic configuration
 # ==============================================================================
-id: "wuji_robot"
+id: "brainco_robot"
 
 # Arm mode: "single_right", "single_left", "dual"
 arm_mode: "dual"
@@ -15,14 +15,14 @@ use_ee_pose: false
 # ==============================================================================
 # Arm type configuration
 # ==============================================================================
-# Arm type: "wuji", "agilex", "custom"
-#   - wuji: Wuji arm
+# Arm type: "brainco", "agilex", "custom"
+#   - brainco: BrainCo arm
 #       * Arm hardware output: degrees
 #       * Dexterous hand hardware output: radians
 #       * Note: training data uses mixed units (no conversion), and no conversion at inference either
 #   - agilex: AgileX arm, low-level control uses degrees
 #   - custom: custom; arm_hw_unit and hand_hw_unit must be configured manually
-arm_type: "wuji"
+arm_type: "brainco"
 
 # Hardware unit configuration (only effective when arm_type="custom")
 # "degree": hardware uses degrees
@@ -32,7 +32,7 @@ hand_hw_unit: "radian"
 
 # Robot degrees of freedom
 arm_dof: 7
-hand_dof: 20
+hand_dof: 22
 
 # Control frequency
 control_hz: 30.0
@@ -62,16 +62,16 @@ prompt: "manipulation"
 # ==============================================================================
 joint_state_topics:
   left_arm:
-    topic: "/tianji_arm/left/joint_state"
+    topic: "/brainco_arm/left/joint_state"
     enabled: true
   right_arm:
-    topic: "/tianji_arm/right/joint_state"
+    topic: "/brainco_arm/right/joint_state"
     enabled: true
   left_hand:
-    topic: "/wuji_hand/left/joint_state"
+    topic: "/brainco_hand/left/joint_state"
     enabled: true
   right_hand:
-    topic: "/wuji_hand/right/joint_state"
+    topic: "/brainco_hand/right/joint_state"
     enabled: true
 
 # ==============================================================================
@@ -93,16 +93,16 @@ camera_topics:
 # ==============================================================================
 action_cmd_topics:
   left_arm:
-    topic: "/tianji_arm/left/joint_command"
+    topic: "/brainco_arm/left/joint_command"
     enabled: true
   right_arm:
-    topic: "/tianji_arm/right/joint_command"
+    topic: "/brainco_arm/right/joint_command"
     enabled: true
   left_hand:
-    topic: "/wuji_hand/left/joint_command"
+    topic: "/brainco_hand/left/joint_command"
     enabled: true
   right_hand:
-    topic: "/wuji_hand/right/joint_command"
+    topic: "/brainco_hand/right/joint_command"
     enabled: true
 
 # ==============================================================================

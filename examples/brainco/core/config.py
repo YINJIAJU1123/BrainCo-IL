@@ -32,7 +32,7 @@ class DeployConfig:
     Supports the OpenPI control pipeline and provides a unified ROS2 topic configuration.
 
     Arm Type:
-        - "wuji": Wuji arm, low-level control uses degrees
+        - "brainco": BrainCo arm, low-level control uses degrees
         - "agilex": AgileX arm, low-level control uses degrees
         - "custom": custom; units must be configured manually
 
@@ -56,15 +56,15 @@ class DeployConfig:
     # =========================================================================
     # Basic configuration
     # =========================================================================
-    id: str = "wuji_robot"
+    id: str = "brainco_robot"
     arm_mode: Literal["single_right", "single_left", "dual", "both"] = "single_right"
     use_ee_pose: bool = False
 
     # =========================================================================
     # Arm type configuration
     # =========================================================================
-    # Arm type: "wuji", "agilex", "custom"
-    arm_type: Literal["wuji", "agilex", "custom"] = "wuji"
+    # Arm type: "brainco", "agilex", "custom"
+    arm_type: Literal["brainco", "agilex", "custom"] = "brainco"
 
     # Hardware unit configuration (only needed when arm_type="custom")
     # "degree": hardware uses degrees
@@ -74,7 +74,7 @@ class DeployConfig:
 
     # Robot degrees of freedom
     arm_dof: int = 7
-    hand_dof: int = 20
+    hand_dof: int = 22
     ee_pose_dof: int = 6
 
     # =========================================================================
@@ -117,10 +117,10 @@ class DeployConfig:
     # =========================================================================
     # ROS2 topic configuration - joint state subscriptions
     # =========================================================================
-    left_arm_joint_topic: str = "/tianji_arm/left/joint_state"
-    right_arm_joint_topic: str = "/tianji_arm/right/joint_state"
-    left_hand_angle_topic: str = "/wuji_hand/left/joint_state"
-    right_hand_angle_topic: str = "/wuji_hand/right/joint_state"
+    left_arm_joint_topic: str = "/brainco_arm/left/joint_state"
+    right_arm_joint_topic: str = "/brainco_arm/right/joint_state"
+    left_hand_angle_topic: str = "/brainco_hand/left/joint_state"
+    right_hand_angle_topic: str = "/brainco_hand/right/joint_state"
 
     # =========================================================================
     # ROS2 topic configuration - end-effector pose subscriptions (optional)
@@ -138,10 +138,10 @@ class DeployConfig:
     # =========================================================================
     # ROS2 topic configuration - action command publishers
     # =========================================================================
-    left_arm_cmd_topic: str = "/tianji_arm/left/joint_command"
-    right_arm_cmd_topic: str = "/tianji_arm/right/joint_command"
-    left_hand_cmd_topic: str = "/wuji_hand/left/joint_command"
-    right_hand_cmd_topic: str = "/wuji_hand/right/joint_command"
+    left_arm_cmd_topic: str = "/brainco_arm/left/joint_command"
+    right_arm_cmd_topic: str = "/brainco_arm/right/joint_command"
+    left_hand_cmd_topic: str = "/brainco_hand/left/joint_command"
+    right_hand_cmd_topic: str = "/brainco_hand/right/joint_command"
 
     # =========================================================================
     # Camera shape configuration
@@ -214,7 +214,7 @@ class DeployConfig:
         Get the arm hardware unit
 
         Returns the hardware unit based on arm_type:
-        - wuji: radian (marked as radians to disable unit conversion; the hardware
+        - brainco: radian (marked as radians to disable unit conversion; the hardware
           actually outputs degrees, but no conversion was applied during training)
         - agilex: degree
         - custom: uses the arm_hw_unit configuration
@@ -222,7 +222,7 @@ class DeployConfig:
         Returns:
             "degree" or "radian"
         """
-        if self.arm_type == "wuji":
+        if self.arm_type == "brainco":
             return "radian"  # disable conversion to preserve training-time mixed units (arm in degrees + dexterous hand in radians)
         if self.arm_type == "agilex":
             return "degree"
@@ -234,15 +234,15 @@ class DeployConfig:
         Get the dexterous-hand hardware unit
 
         Returns the hardware unit based on arm_type:
-        - wuji: radian - the Wuji dexterous-hand hardware uses radians
+        - brainco: radian - the BrainCo dexterous-hand hardware uses radians
         - agilex: degree
         - custom: uses the hand_hw_unit configuration
 
         Returns:
             "degree" or "radian"
         """
-        if self.arm_type == "wuji":
-            return "radian"  # the Wuji dexterous hand uses radians, no conversion needed
+        if self.arm_type == "brainco":
+            return "radian"  # the BrainCo dexterous hand uses radians, no conversion needed
         if self.arm_type == "agilex":
             return "degree"
         # custom

@@ -2,12 +2,12 @@
 """
 OpenPI deployment entry point
 
-Uses the openpi_client framework to run the Wuji robot control system.
+Uses the openpi_client framework to run the BrainCo robot control system.
 Connects to the remote policy server via WebSocket for inference.
 
 Architecture:
     Runtime (coordinator)
-      |-> Environment (Wuji ROS2 environment)
+      |-> Environment (BrainCo ROS2 environment)
       |-> Agent (policy agent)
       |     |-> ActionChunkBroker (action chunk management)
       |           |-> WebsocketClientPolicy (policy server client)
@@ -15,10 +15,10 @@ Architecture:
 
 Usage:
     # Use a config file
-    python -m wuji.deploy.main -c config/deploy.yaml
+    PYTHONPATH=examples python -m brainco.deploy.main -c config/deploy.yaml
 
     # Use command-line arguments
-    python -m wuji.deploy.main --host 192.168.1.100 --port 12346 --side both
+    PYTHONPATH=examples python -m brainco.deploy.main --host 192.168.1.100 --port 12346 --side both
 """
 
 from __future__ import annotations
@@ -36,24 +36,24 @@ from rclpy.node import Node
 from rclpy.utilities import remove_ros_args
 from sensor_msgs.msg import JointState
 
-from wuji.core import DeployConfig
+from brainco.core import DeployConfig
 
 from .ros_env import OpenPIRosEnvironment
 
 logger = logging.getLogger(__name__)
 
 
-class WujiDeployNode(Node):
-    """Wuji deployment ROS2 node"""
+class BrainCoDeployNode(Node):
+    """BrainCo deployment ROS2 node"""
 
-    def __init__(self, name: str = "wuji_openpi_node"):
+    def __init__(self, name: str = "brainco_openpi_node"):
         super().__init__(name)
         self.get_logger().info(f"Node {name} created")
 
 
 def parse_args(argv: list[str] | None = None) -> DeployConfig:
     """Parse command-line arguments and return the configuration"""
-    parser = argparse.ArgumentParser(description="Wuji robot deployment using OpenPI framework")
+    parser = argparse.ArgumentParser(description="BrainCo robot deployment using OpenPI framework")
     parser.add_argument("-c", "--config", default=None, help="config file path")
     parser.add_argument("--host", default=None, help="policy server address")
     parser.add_argument("--port", type=int, default=None, help="policy server port")
@@ -155,13 +155,13 @@ def move_to_initial_positions(
 
 def run_openpi_deploy(config: DeployConfig) -> None:
     """
-    Run the Wuji robot control system using the OpenPI framework
+    Run the BrainCo robot control system using the OpenPI framework
 
     Args:
         config: deployment configuration
     """
     # 1. Create the ROS2 node
-    node = WujiDeployNode("wuji_openpi_node")
+    node = BrainCoDeployNode("brainco_openpi_node")
 
     # 2. Create the WebSocket client and connect to the policy server
     logger.info(f"Connecting to policy server: {config.server_host}:{config.server_port}")
@@ -224,7 +224,7 @@ def run_openpi_deploy(config: DeployConfig) -> None:
 
     # 5. Log the configuration
     logger.info("=" * 60)
-    logger.info("Wuji robot control system configuration (OpenPI):")
+    logger.info("BrainCo robot control system configuration (OpenPI):")
     logger.info(f"  Policy server: {config.server_host}:{config.server_port}")
     logger.info(f"  Control mode: {config.arm_mode}")
     logger.info(f"  Control frequency: {config.control_hz}Hz")
@@ -271,7 +271,7 @@ def run_openpi_deploy(config: DeployConfig) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     """Main entry point"""
-    program_name = sys.argv[0] if sys.argv else "wuji_openpi"
+    program_name = sys.argv[0] if sys.argv else "brainco_openpi"
     raw_argv = sys.argv if argv is None else [program_name, *argv]
     cli_argv = remove_ros_args(raw_argv)[1:]
     config = parse_args(cli_argv)
