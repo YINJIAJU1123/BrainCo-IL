@@ -6,16 +6,16 @@
 
 - `src/openpi/policies/brainco_policy.py`：BrainCo 输入/输出 transform
 - `src/openpi/training/config.py`：BrainCo LeRobot 数据配置
-- 参考 pi0.5 训练配置：`pi05_brainco_multi_58d`
+- 参考 pi0.5 训练配置：`pi05_brainco_multi_56d`
 - `examples/brainco/`：可选 ROS2/OpenPI 部署示例
 - `PartialCheckpointWeightLoader`：支持跨 action 维度加载可兼容的 base 权重
 
 ## 参考维度
 
-当前 BrainCo 参考布局为 58 维：
+当前 BrainCo 参考布局为 56 维：
 
 ```text
-left_arm(7) + left_hand(22) + right_arm(7) + right_hand(22) = 58
+left_arm(7) + left_hand(21) + right_arm(7) + right_hand(21) = 56
 ```
 
 `observation.state` 和 `action` 必须使用同一拼接顺序。
@@ -25,11 +25,11 @@ left_arm(7) + left_hand(22) + right_arm(7) + right_hand(22) = 58
 参考 `LeRobotBrainCoDataConfig` 期望 LeRobot 样本包含：
 
 ```text
-observation.state                      float32[58]
+observation.state                      float32[56]
 observation.images.stereo_right         uint8[H, W, 3]
 observation.images.cam_left_wrist       uint8[H, W, 3]
 observation.images.cam_right_wrist      uint8[H, W, 3]
-action                                  float32[action_horizon, 58]
+action                                  float32[action_horizon, 56]
 prompt                                  string
 ```
 
@@ -37,23 +37,23 @@ prompt                                  string
 
 ## 训练
 
-先在 `src/openpi/training/config.py` 的 `pi05_brainco_multi_58d` 中填写数据集路径，然后计算归一化统计并训练：
+先在 `src/openpi/training/config.py` 的 `pi05_brainco_multi_56d` 中填写数据集路径，然后计算归一化统计并训练：
 
 ```bash
-uv run scripts/compute_norm_stats.py --config-name pi05_brainco_multi_58d
+uv run scripts/compute_norm_stats.py --config-name pi05_brainco_multi_56d
 
 XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 \
-  uv run scripts/train.py pi05_brainco_multi_58d \
+  uv run scripts/train.py pi05_brainco_multi_56d \
   --exp-name=my_brainco_run
 ```
 
-该配置使用 `PartialCheckpointWeightLoader`：加载 pi0.5 base checkpoint 时，形状匹配的权重正常加载，动作/状态投影层等形状不匹配的层随机初始化。这是从上游 action 维度迁移到 58 维的核心机制。
+该配置使用 `PartialCheckpointWeightLoader`：加载 pi0.5 base checkpoint 时，形状匹配的权重正常加载，动作/状态投影层等形状不匹配的层随机初始化。这是从上游 action 维度迁移到 56 维的核心机制。
 
 ## 策略服务
 
 ```bash
 uv run scripts/serve_policy.py policy:checkpoint \
-  --policy.config=pi05_brainco_multi_58d \
+  --policy.config=pi05_brainco_multi_56d \
   --policy.dir=/path/to/checkpoint
 ```
 
@@ -77,16 +77,10 @@ prompt
 - 数据集 `observation.state` 和 `action` 宽度
 - 重新计算 norm stats
 
-例如每只手 21 维时，双臂总维度是 `7 + 21 + 7 + 21 = 56`，delta mask 应为：
+当前参考配置每只手 21 维：
 
 ```python
 _transforms.make_bool_mask(7, -21, 7, -21)
-```
-
-当前参考配置每只手 22 维：
-
-```python
-_transforms.make_bool_mask(7, -22, 7, -22)
 ```
 
 ## 目录

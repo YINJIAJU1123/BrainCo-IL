@@ -17,10 +17,10 @@
 
 **BrainCo 双臂双灵巧手机器人栈（内部）**
 - `examples/brainco/`：ROS2 部署包（约 2790 行，13 文件），含 `core/`（`DeployConfig`、ROS2 接口、时间戳对齐、四元数/欧拉角/FK 工具）、`deploy/`（`main.py` CLI 入口 + `ros_env.py` Environment 适配）、`config/deploy.yaml`、`package.xml`、`README.md`。
-- `src/openpi/policies/brainco_policy.py`：58 维双臂双手 transforms（替换上游 27 维单臂版本）。
+- `src/openpi/policies/brainco_policy.py`：56 维双臂双手 transforms（替换上游 27 维单臂版本）。
 - `src/openpi/training/config.py`：
   - `LeRobotBrainCoDataConfig` 数据配置类；
-  - 训练注册项 `pi05_brainco_multi_58d`。
+  - 训练注册项 `pi05_brainco_multi_56d`。
 
 **客户端异步 broker**（`packages/openpi-client/src/openpi_client/`）
 - `rtg_action_broker.py`（+596）：Real-Time Trajectory Generation broker，含 QP 变体 `qp_smooth_prefix` / `cubic_smooth_prefix` / `build_time_window_old_reference`。

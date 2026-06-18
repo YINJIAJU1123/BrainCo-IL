@@ -5,7 +5,7 @@ This directory contains an optional ROS2 client example for running a trained Op
 The training/model-side reference layout is:
 
 ```text
-left_arm(7) + left_hand(22) + right_arm(7) + right_hand(22) = 58
+left_arm(7) + left_hand(21) + right_arm(7) + right_hand(21) = 56
 ```
 
 ## Layout
@@ -25,7 +25,7 @@ Start the policy server from the repository root:
 
 ```bash
 uv run scripts/serve_policy.py policy:checkpoint \
-  --policy.config=pi05_brainco_multi_58d \
+  --policy.config=pi05_brainco_multi_56d \
   --policy.dir=/path/to/checkpoint \
   --host=0.0.0.0 \
   --port=8000
@@ -57,7 +57,7 @@ Important fields:
 ```yaml
 arm_mode: "dual"
 arm_dof: 7
-hand_dof: 22
+hand_dof: 21
 server_host: localhost
 server_port: 8000
 action_horizon: 50
@@ -89,7 +89,7 @@ prompt
 
 - `ModuleNotFoundError: No module named 'brainco'`: run from the repository root, or add `examples` to `PYTHONPATH`.
 - `ModuleNotFoundError: No module named 'rclpy._rclpy_pybind11'`: use the Python interpreter from your ROS2 Humble environment.
-- WebSocket disconnects: check the policy server logs and verify that `pi05_brainco_multi_58d`, norm stats, and observation/action dimensions match.
+- WebSocket disconnects: check the policy server logs and verify that `pi05_brainco_multi_56d`, norm stats, and observation/action dimensions match.
 - Missing ROS2 data: verify topic names in `deploy.yaml` with `ros2 topic list` and `ros2 topic hz`.
 
 ## Notes

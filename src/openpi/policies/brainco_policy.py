@@ -1,8 +1,8 @@
 """Policy transforms for BrainCo robot (dual-arm dual-dexterous-hand).
 
 Dataset structure:
-- observation.state: 58 dims (7 left arm + 22 left hand + 7 right arm + 22 right hand)
-- action: 58 dims
+- observation.state: 56 dims (7 left arm + 21 left hand + 7 right arm + 21 right hand)
+- action: 56 dims
 - observation.images.cam_left_wrist: (480, 640, 3)
 - observation.images.cam_right_wrist: (480, 640, 3)
 - observation.images.stereo_right: (480, 640, 3)
@@ -17,7 +17,7 @@ from openpi import transforms
 from openpi.models import model as _model
 
 # BrainCo robot action dimension: dual-arm dual-dexterous-hand
-BRAINCO_ACTION_DIM = 58
+BRAINCO_ACTION_DIM = 56
 
 
 def make_brainco_example() -> dict:

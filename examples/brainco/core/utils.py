@@ -221,7 +221,7 @@ def unpack_action_array(
     action: np.ndarray,
     arm_mode: str = "single_right",
     arm_dof: int = 7,
-    hand_dof: int = 22,
+    hand_dof: int = 21,
 ) -> dict:
     """
     Unpack a unified action array into separated arm/hand actions

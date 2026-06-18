@@ -74,7 +74,7 @@ class DeployConfig:
 
     # Robot degrees of freedom
     arm_dof: int = 7
-    hand_dof: int = 22
+    hand_dof: int = 21
     ee_pose_dof: int = 6
 
     # =========================================================================

@@ -32,7 +32,7 @@ hand_hw_unit: "radian"
 
 # Robot degrees of freedom
 arm_dof: 7
-hand_dof: 22
+hand_dof: 21
 
 # Control frequency
 control_hz: 30.0

@@ -380,13 +380,13 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
     Config for BrainCo robot (dual-arm dual-dexterous-hand) dataset.
 
     Dataset features:
-    - observation.state: 58 dims (7 left arm + 22 left hand + 7 right arm + 22 right hand)
-    - action: 58 dims (full dimension)
+    - observation.state: 56 dims (7 left arm + 21 left hand + 7 right arm + 21 right hand)
+    - action: 56 dims (full dimension)
     - observation.images.cam_left_wrist: (480, 640, 3)
     - observation.images.cam_right_wrist: (480, 640, 3)
     - observation.images.stereo_right: (480, 640, 3)
 
-    This config uses the full 58 dimensions, requiring a model with action_dim=58.
+    This config uses the full 56 dimensions, requiring a model with action_dim=56.
     Action projection layers (action_in_proj, action_out_proj) will need to be
     initialized from scratch when loading pretrained weights.
     """
@@ -421,9 +421,9 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
         # Apply delta action transform if needed (for absolute action data)
         # For BrainCo: apply delta to arm joints, keep hand joints as-is
         if self.extra_delta_transform:
-            # Full 58D: Left arm (7) + Left hand (22) + Right arm (7) + Right hand (22)
+            # Full 56D: Left arm (7) + Left hand (21) + Right arm (7) + Right hand (21)
             # Apply delta to arms, keep hands absolute
-            delta_action_mask = _transforms.make_bool_mask(7, -22, 7, -22)
+            delta_action_mask = _transforms.make_bool_mask(7, -21, 7, -21)
 
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
@@ -1023,13 +1023,13 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     #
-    # BrainCo dual-arm dual-dexterous-hand configs (58D).
+    # BrainCo dual-arm dual-dexterous-hand configs (56D).
     #
     TrainConfig(
-        # Multi-dataset training for BrainCo with 58D
-        name="pi05_brainco_multi_58d",
+        # Multi-dataset training for BrainCo with 56D
+        name="pi05_brainco_multi_56d",
         checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(pi05=True, action_dim=58, action_horizon=100, max_token_len=256),
+        model=pi0_config.Pi0Config(pi05=True, action_dim=56, action_horizon=100, max_token_len=256),
         data=LeRobotBrainCoDataConfig(
             repo_id="brainco",  # Not used when lerobot_datasets is set
             base_config=DataConfig(

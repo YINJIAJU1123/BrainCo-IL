@@ -27,8 +27,8 @@ This script:
 Usage:
     # For local checkpoint:
     python examples/open_loop_eval.py \
-        --checkpoint_dir=outputs/checkpoints/pi05_brainco_multi_58d \
-        --config_name=pi05_brainco_multi_58d \
+        --checkpoint_dir=outputs/checkpoints/pi05_brainco_multi_56d \
+        --config_name=pi05_brainco_multi_56d \
         --num_episodes=5 \
         --output_dir=open_loop_results \
         --device=cuda
@@ -642,7 +642,7 @@ def main():
         "--config_name",
         type=str,
         required=True,
-        help="Name of the training configuration (e.g., pi05_brainco_multi_58d, pi0_fast_droid)",
+        help="Name of the training configuration (e.g., pi05_brainco_multi_56d, pi0_fast_droid)",
     )
     parser.add_argument("--num_episodes", type=int, default=5, help="Number of episodes to test")
     parser.add_argument("--output_dir", type=str, default="open_loop_results", help="Directory to save results")

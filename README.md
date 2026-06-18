@@ -6,16 +6,16 @@ This repository keeps the upstream OpenPI model stack and adds a BrainCo high-di
 
 - BrainCo policy transforms in `src/openpi/policies/brainco_policy.py`
 - BrainCo LeRobot data config in `src/openpi/training/config.py`
-- Reference pi0.5 training config: `pi05_brainco_multi_58d`
+- Reference pi0.5 training config: `pi05_brainco_multi_56d`
 - Optional ROS2/OpenPI deployment example under `examples/brainco/`
 - Partial checkpoint loading for action-dimension changes
 
 ## Reference Layout
 
-The reference BrainCo layout is 58D:
+The reference BrainCo layout is 56D:
 
 ```text
-left_arm(7) + left_hand(22) + right_arm(7) + right_hand(22) = 58
+left_arm(7) + left_hand(21) + right_arm(7) + right_hand(21) = 56
 ```
 
 Both `observation.state` and `action` are expected to use the same ordering.
@@ -25,11 +25,11 @@ Both `observation.state` and `action` are expected to use the same ordering.
 The reference `LeRobotBrainCoDataConfig` expects LeRobot samples with:
 
 ```text
-observation.state                      float32[58]
+observation.state                      float32[56]
 observation.images.stereo_right         uint8[H, W, 3]
 observation.images.cam_left_wrist       uint8[H, W, 3]
 observation.images.cam_right_wrist      uint8[H, W, 3]
-action                                  float32[action_horizon, 58]
+action                                  float32[action_horizon, 56]
 prompt                                  string
 ```
 
@@ -37,23 +37,23 @@ If your converted dataset uses different image key names, update the `RepackTran
 
 ## Training
 
-Edit the dataset paths in `src/openpi/training/config.py` under `pi05_brainco_multi_58d`, then compute normalization statistics and train:
+Edit the dataset paths in `src/openpi/training/config.py` under `pi05_brainco_multi_56d`, then compute normalization statistics and train:
 
 ```bash
-uv run scripts/compute_norm_stats.py --config-name pi05_brainco_multi_58d
+uv run scripts/compute_norm_stats.py --config-name pi05_brainco_multi_56d
 
 XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 \
-  uv run scripts/train.py pi05_brainco_multi_58d \
+  uv run scripts/train.py pi05_brainco_multi_56d \
   --exp-name=my_brainco_run
 ```
 
-The config uses `PartialCheckpointWeightLoader` to load compatible pi0.5 base weights while randomly initializing shape-mismatched action/state projection layers. This is what makes changing from the upstream action dimension to 58D straightforward.
+The config uses `PartialCheckpointWeightLoader` to load compatible pi0.5 base weights while randomly initializing shape-mismatched action/state projection layers. This is what makes changing from the upstream action dimension to 56D straightforward.
 
 ## Serving
 
 ```bash
 uv run scripts/serve_policy.py policy:checkpoint \
-  --policy.config=pi05_brainco_multi_58d \
+  --policy.config=pi05_brainco_multi_56d \
   --policy.dir=/path/to/checkpoint
 ```
 
@@ -77,16 +77,10 @@ To change the morphology, keep the joint ordering explicit and update these toge
 - dataset `observation.state` and `action` widths
 - normalization stats, recomputed for the new dataset
 
-For example, if each hand has 21 DOF, the dual-arm total is `7 + 21 + 7 + 21 = 56`, and the delta mask should be:
+The current reference uses 21 DOF per hand:
 
 ```python
 _transforms.make_bool_mask(7, -21, 7, -21)
-```
-
-The current reference uses 22 DOF per hand:
-
-```python
-_transforms.make_bool_mask(7, -22, 7, -22)
 ```
 
 ## Repository Layout
