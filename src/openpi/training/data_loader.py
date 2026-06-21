@@ -19,6 +19,34 @@ import openpi.transforms as _transforms
 T_co = TypeVar("T_co", covariant=True)
 
 
+def _patch_torch_stack_for_datasets_column() -> None:
+    """Make older LeRobot code work with newer HuggingFace datasets Column objects."""
+    if getattr(torch.stack, "_openpi_datasets_column_compat", False):
+        return
+
+    original_stack = torch.stack
+
+    def stack_compat(input, *stack_args, **stack_kwargs):  # noqa: ANN001
+        if input.__class__.__name__ == "Column" and input.__class__.__module__.startswith("datasets."):
+            values = list(input)
+            if values and torch.is_tensor(values[0]):
+                return original_stack(values, *stack_args, **stack_kwargs)
+            return torch.as_tensor(values)
+        return original_stack(input, *stack_args, **stack_kwargs)
+
+    stack_compat._openpi_datasets_column_compat = True
+    torch.stack = stack_compat
+
+
+_patch_torch_stack_for_datasets_column()
+
+
+def _create_lerobot_dataset_compat(*args, **kwargs) -> lerobot_dataset.LeRobotDataset:
+    """Create a LeRobotDataset with compatibility patches already installed."""
+    kwargs.setdefault("video_backend", os.environ.get("OPENPI_LEROBOT_VIDEO_BACKEND", "pyav"))
+    return lerobot_dataset.LeRobotDataset(*args, **kwargs)
+
+
 class Dataset(Protocol[T_co]):
     """Interface for a dataset with random access."""
 
@@ -262,7 +290,7 @@ def create_torch_dataset(
         for ds_config in data_config.lerobot_datasets:
             # Create individual dataset
             dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(ds_config.repo_id)
-            dataset = lerobot_dataset.LeRobotDataset(
+            dataset = _create_lerobot_dataset_compat(
                 ds_config.repo_id,
                 delta_timestamps={
                     key: [t / dataset_meta.fps for t in range(action_horizon)]
@@ -301,7 +329,7 @@ def create_torch_dataset(
         return FakeDataset(model_config, num_samples=1024)
 
     dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(repo_id)
-    dataset = lerobot_dataset.LeRobotDataset(
+    dataset = _create_lerobot_dataset_compat(
         data_config.repo_id,
         delta_timestamps={
             key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys

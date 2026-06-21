@@ -74,7 +74,7 @@ class DeployConfig:
 
     # Robot degrees of freedom
     arm_dof: int = 7
-    hand_dof: int = 20
+    hand_dof: int = 21
     ee_pose_dof: int = 6
 
     # =========================================================================
@@ -88,7 +88,7 @@ class DeployConfig:
     # =========================================================================
     server_host: str = "localhost"
     server_port: int = 12346
-    action_horizon: int = 50
+    action_horizon: int = 100
     num_episodes: int = 1
     max_episode_steps: int = 1000000
     prompt: str = "pick up the cube"

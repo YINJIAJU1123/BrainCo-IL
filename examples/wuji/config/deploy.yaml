@@ -32,7 +32,7 @@ hand_hw_unit: "radian"
 
 # Robot degrees of freedom
 arm_dof: 7
-hand_dof: 20
+hand_dof: 21
 
 # Control frequency
 control_hz: 30.0
@@ -48,7 +48,7 @@ server_host: localhost
 server_port: 8000
 
 # Action chunk length (ActionChunkBroker)
-action_horizon: 50
+action_horizon: 100
 
 # Episode configuration
 num_episodes: 1

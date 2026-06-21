@@ -335,17 +335,28 @@ class ROS2Interface:
         Publish an action command
 
         Args:
-            action: action array
-                - 27D: arm(7) + hand(20) single arm
-                - 54D: left_arm(7) + left_hand(20) + right_arm(7) + right_hand(20) dual arm
+            action: action array matching the configured arm/hand dimensions.
         """
         action_dim = len(action)
+        arm_dof = self._config.arm_dof
+        hand_dof = self._config.hand_dof
+        single_arm_dim = arm_dof + hand_dof
+        expected_dim = single_arm_dim * (2 if self._config.is_dual_arm() else 1)
         stamp = self._node.get_clock().now().to_msg()
 
-        if action_dim == 27:
+        if action_dim != expected_dim:
+            logger.warning(
+                "Unexpected action dimension: got %d, expected %d for arm_mode=%s",
+                action_dim,
+                expected_dim,
+                self._config.arm_mode,
+            )
+            return
+
+        if not self._config.is_dual_arm():
             # Single-arm mode
-            arm_cmd = action[:7]
-            hand_cmd = action[7:27]
+            arm_cmd = action[:arm_dof]
+            hand_cmd = action[arm_dof:single_arm_dim]
 
             if self._config.use_left_arm() and not self._config.is_dual_arm():
                 self._publish_joint_cmd("left_arm", arm_cmd, stamp)
@@ -354,12 +365,16 @@ class ROS2Interface:
                 self._publish_joint_cmd("right_arm", arm_cmd, stamp)
                 self._publish_joint_cmd("right_hand", hand_cmd, stamp)
 
-        elif action_dim == 54:
+        else:
             # Dual-arm mode
-            left_arm_cmd = action[:7]
-            left_hand_cmd = action[7:27]
-            right_arm_cmd = action[27:34]
-            right_hand_cmd = action[34:54]
+            idx = 0
+            left_arm_cmd = action[idx : idx + arm_dof]
+            idx += arm_dof
+            left_hand_cmd = action[idx : idx + hand_dof]
+            idx += hand_dof
+            right_arm_cmd = action[idx : idx + arm_dof]
+            idx += arm_dof
+            right_hand_cmd = action[idx : idx + hand_dof]
 
             if self._config.use_left_arm():
                 self._publish_joint_cmd("left_arm", left_arm_cmd, stamp)
@@ -368,9 +383,6 @@ class ROS2Interface:
             if self._config.use_right_arm():
                 self._publish_joint_cmd("right_arm", right_arm_cmd, stamp)
                 self._publish_joint_cmd("right_hand", right_hand_cmd, stamp)
-
-        else:
-            logger.warning(f"Unknown action dimension: {action_dim}")
 
     def publish_action_dict(self, action_dict: dict[str, np.ndarray]) -> None:
         """

@@ -192,15 +192,15 @@ def pack_action_array(
 
     Args:
         left_arm: left arm joints (7 DOF)
-        left_hand: left hand joints (20 DOF)
+        left_hand: left hand joints
         right_arm: right arm joints (7 DOF)
-        right_hand: right hand joints (20 DOF)
+        right_hand: right hand joints
         arm_mode: arm mode ("single_left", "single_right", "dual", "both")
 
     Returns:
         Packed action array
-            - Single arm: 27D (arm + hand)
-            - Dual arm: 54D (left_arm + left_hand + right_arm + right_hand)
+            - Single arm: arm + hand
+            - Dual arm: left_arm + left_hand + right_arm + right_hand
     """
     action = []
 
@@ -223,7 +223,7 @@ def unpack_action_array(
     action: np.ndarray,
     arm_mode: str = "single_right",
     arm_dof: int = 7,
-    hand_dof: int = 20,
+    hand_dof: int = 21,
 ) -> dict:
     """
     Unpack a unified action array into separated arm/hand actions
@@ -280,8 +280,8 @@ def build_observation_state(
         State vector (numpy array)
 
     State order:
-        - Single arm: arm(7) + [ee(6)] + hand(20)
-        - Dual arm: left_arm(7) + [left_ee(6)] + left_hand(20) + right_arm(7) + [right_ee(6)] + right_hand(20)
+        - Single arm: arm + optional ee pose + hand
+        - Dual arm: left arm + optional left ee pose + left hand + right arm + optional right ee pose + right hand
     """
     state_parts = []
 

@@ -126,7 +126,7 @@ class OpenPIRosEnvironment(_environment.Environment):
             synced_data = self._latest_synced
 
         # Build the state vector
-        # Order: left_arm(7), left_hand(20), right_arm(7), right_hand(20)
+        # Order: left_arm, left_hand, right_arm, right_hand; dimensions come from the deployment config.
         state = build_observation_state(
             synced_data,
             arm_mode=self._config.arm_mode,

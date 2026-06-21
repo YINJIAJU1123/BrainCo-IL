@@ -380,18 +380,21 @@ class LeRobotWujiDataConfig(DataConfigFactory):
     Config for Wuji robot (dual-arm dual-dexterous-hand) dataset.
 
     Dataset features:
-    - observation.state: 54 dims (7 left arm + 20 left hand + 7 right arm + 20 right hand)
-    - action: 54 dims (full dimension)
+    - observation.state: configurable dims (dual arms + dual hands)
+    - action: configurable dims (full dimension)
     - observation.images.cam_left_wrist: (480, 640, 3)
     - observation.images.cam_right_wrist: (480, 640, 3)
-    - observation.images.stereo_right: (480, 640, 3)
+    - observation.images.stereo_right or observation.images.cam_head
 
-    This config uses the full 54 dimensions, requiring a model with action_dim=54.
-    Action projection layers (action_in_proj, action_out_proj) will need to be
+    Action projection layers (action_in_proj, action_out_proj) may need to be
     initialized from scratch when loading pretrained weights.
     """
 
     extra_delta_transform: bool = False
+    arm_dof: int = 7
+    hand_dof: int = 20
+    head_camera_key: str = "observation.images.stereo_right"
+    revo3_eef_joint_hand_to_joint_hand: bool = False
     # Action key name in the raw dataset (used by LeRobot loader BEFORE repack transform)
     action_sequence_keys: Sequence[str] = ("action",)
 
@@ -402,7 +405,7 @@ class LeRobotWujiDataConfig(DataConfigFactory):
             inputs=[
                 _transforms.RepackTransform(
                     {
-                        "observation/image": "observation.images.stereo_right",
+                        "observation/image": self.head_camera_key,
                         "observation/left_wrist_image": "observation.images.cam_left_wrist",
                         "observation/right_wrist_image": "observation.images.cam_right_wrist",
                         "observation/state": "observation.state",
@@ -413,17 +416,32 @@ class LeRobotWujiDataConfig(DataConfigFactory):
             ]
         )
 
+        input_transforms = []
+        if self.revo3_eef_joint_hand_to_joint_hand:
+            input_transforms.append(
+                wuji_policy.WujiRevo3EefJointHandToJointHand(
+                    arm_dof=self.arm_dof,
+                    hand_dof=self.hand_dof,
+                )
+            )
+        input_transforms.append(wuji_policy.WujiInputs(model_type=model_config.model_type))
+
         data_transforms = _transforms.Group(
-            inputs=[wuji_policy.WujiInputs(model_type=model_config.model_type)],
-            outputs=[wuji_policy.WujiOutputs()],
+            inputs=input_transforms,
+            outputs=[wuji_policy.WujiOutputs(action_dim=model_config.action_dim)],
         )
 
         # Apply delta action transform if needed (for absolute action data)
         # For Wuji: apply delta to arm joints, keep hand joints as-is
         if self.extra_delta_transform:
-            # Full 54D: Left arm (7) + Left hand (20) + Right arm (7) + Right hand (20)
+            # Full layout: left arm + left hand + right arm + right hand.
             # Apply delta to arms, keep hands absolute
-            delta_action_mask = _transforms.make_bool_mask(7, -20, 7, -20)
+            delta_action_mask = _transforms.make_bool_mask(
+                self.arm_dof,
+                -self.hand_dof,
+                self.arm_dof,
+                -self.hand_dof,
+            )
 
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
@@ -1023,7 +1041,7 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     #
-    # Wuji dual-arm dual-dexterous-hand configs (54D).
+    # Wuji dual-arm dual-dexterous-hand configs.
     #
     TrainConfig(
         # Multi-dataset training for Wuji with 54D
@@ -1062,6 +1080,91 @@ _CONFIGS = [
             warmup_steps=1_000,
             peak_lr=5e-5,
             decay_steps=30_000,
+            decay_lr=5e-6,
+        ),
+    ),
+    TrainConfig(
+        # Multi-dataset training for Wuji with 56D:
+        # dual arms 14 + left hand 21 + right hand 21.
+        name="pi05_wuji_multi_56d",
+        checkpoint_base_dir="./checkpoints",
+        model=pi0_config.Pi0Config(pi05=True, action_dim=56, action_horizon=100, max_token_len=256),
+        data=LeRobotWujiDataConfig(
+            repo_id="wuji",
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id="<path_to_lerobot_dataset_1>",
+                        weight=1.0,
+                    ),
+                    LeRobotDataset(
+                        repo_id="<path_to_lerobot_dataset_2>",
+                        weight=1.0,
+                    ),
+                    LeRobotDataset(
+                        repo_id="<path_to_lerobot_dataset_3>",
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+        ),
+        weight_loader=weight_loaders.PartialCheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi05_base/params"
+        ),
+        num_train_steps=30_000,
+        batch_size=64,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=30_000,
+            decay_lr=5e-6,
+        ),
+    ),
+    TrainConfig(
+        # Smoke-test config for the 2026-06-16 Revo3 pick-and-place bread sample.
+        # The raw dataset is 70D: left/right EEF pose + arm joints + hand joints.
+        # We drop the EEF pose and reorder to the deployed 56D layout.
+        name="pi05_wuji_revo3_pick_place_56d",
+        checkpoint_base_dir="./checkpoints",
+        model=pi0_config.Pi0Config(pi05=True, action_dim=56, action_horizon=100, max_token_len=256),
+        data=LeRobotWujiDataConfig(
+            repo_id="wuji_revo3_pick_place_56d",
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id=(
+                            "/mnt/data_nas/ruibin/dataset/"
+                            "original-revomate_revo3_pick_and_place/original/"
+                            "lerobot_v21/revomate_revo3_mit_3cam_test"
+                        ),
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+            head_camera_key="observation.images.cam_head",
+            revo3_eef_joint_hand_to_joint_hand=True,
+        ),
+        weight_loader=weight_loaders.PartialCheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi05_base/params"
+        ),
+        num_train_steps=1_000,
+        batch_size=8,
+        save_interval=500,
+        keep_period=500,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=100,
+            peak_lr=5e-5,
+            decay_steps=1_000,
             decay_lr=5e-6,
         ),
     ),
