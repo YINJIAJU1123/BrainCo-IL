@@ -1,9 +1,45 @@
 #!/usr/bin/env python3
 """Create a new LeRobot v2.x dataset with episode prefixes trimmed by time.
 
-The source dataset is opened read-only. The output must be a new, non-existent
-directory outside the source tree and is built in a temporary sibling directory
-before it is atomically published.
+The source dataset is opened read-only. SOURCE is the LeRobot dataset root that
+contains ``meta/``, ``data/``, and ``videos/``; it is not an individual Parquet
+file. OUTPUT must be a new, non-existent directory outside the source tree. It is
+built in a temporary sibling directory before it is atomically published.
+
+Operating modes:
+
+1. Single-episode validation::
+
+       SOURCE OUTPUT --episode-id 3 --timestamp-s 0.5
+
+   Only source episode 3 is trimmed. OUTPUT is a valid standalone one-episode
+   dataset, reindexed as episode 0. Use this mode to inspect and validate one
+   proposed timestamp; it is not the final combined training dataset.
+
+2. Combined training dataset from a per-episode manifest::
+
+       SOURCE OUTPUT --trim-manifest trims.json
+
+   All source episodes are written into one output dataset with shared metadata.
+   Episodes listed in the manifest use their requested timestamps; omitted
+   episodes use 0 seconds and therefore keep their complete frame range. This is
+   the recommended mode for producing the final dataset used by training.
+
+3. Apply one timestamp to every episode::
+
+       SOURCE OUTPUT --trim-start-s 0.5
+
+   Every episode is trimmed at the same episode-local timestamp.
+
+Key parameters:
+
+* ``SOURCE``: read-only source LeRobot dataset root.
+* ``OUTPUT``: new dataset root; it must not exist and cannot be inside SOURCE.
+* ``--episode-id``: select one source episode for standalone validation output.
+* ``--timestamp-s`` / ``--trim-start-s``: keep the first frame whose episode-local
+  elapsed timestamp is greater than or equal to this value.
+* ``--trim-manifest``: JSON or CSV mapping source episode ids to timestamps.
+* ``--dry-run``: print exact source/output frame ranges and write nothing.
 
 Examples:
 
@@ -18,8 +54,7 @@ A JSON manifest can be a mapping from episode index to seconds::
     {"0": 0.5, "3": 0.8}
 
 CSV manifests must contain ``episode_index`` and ``trim_start_s`` columns.
-Episodes omitted from a manifest are copied with a trim time of zero. Language
-task labels and all state/action values in retained rows are left unchanged.
+Language task labels and all state/action values in retained rows are left unchanged.
 When ``--episode-id`` is passed, the output is a standalone one-episode dataset;
 the selected source episode is reindexed to output episode 0 and the mapping is
 recorded in ``meta/trim_provenance.json``.
@@ -733,12 +768,23 @@ def _build_output(
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("source", type=Path, help="Read-only source LeRobot dataset root")
-    parser.add_argument("output", type=Path, help="New output dataset directory (must not already exist)")
+    parser.add_argument(
+        "source",
+        type=Path,
+        metavar="SOURCE",
+        help="Read-only LeRobot dataset root containing meta/, data/, and videos/ (not a Parquet file)",
+    )
+    parser.add_argument(
+        "output",
+        type=Path,
+        metavar="OUTPUT",
+        help="New output dataset root; must not exist and must be outside SOURCE",
+    )
     parser.add_argument(
         "--episode-id",
         type=int,
-        help="Quick mode: trim only this source episode and emit it as episode 0 in a standalone dataset",
+        metavar="ID",
+        help="Trim only this source episode and emit it as episode 0 in a standalone validation dataset",
     )
     trim_group = parser.add_mutually_exclusive_group(required=True)
     trim_group.add_argument(
@@ -746,14 +792,20 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--timestamp-s",
         dest="trim_start_s",
         type=float,
-        help="Episode-local timestamp in seconds at which retained data begins",
+        metavar="SECONDS",
+        help="Keep the first frame at or after this episode-local timestamp",
     )
     trim_group.add_argument(
         "--trim-manifest",
         type=Path,
-        help="JSON or CSV per-episode trim mapping; omitted episodes use 0 seconds",
+        metavar="PATH",
+        help="Build one combined dataset using a JSON/CSV episode-to-timestamp mapping; omitted episodes use 0s",
     )
-    parser.add_argument("--dry-run", action="store_true", help="Validate inputs and print exact frame ranges only")
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Validate inputs and print exact frame ranges; do not create OUTPUT",
+    )
     parser.add_argument("--ffmpeg", default="ffmpeg", help="FFmpeg executable used for frame-accurate re-encoding")
     parser.add_argument("--video-codec", default="libx264")
     parser.add_argument("--video-preset", default="medium")
