@@ -13,6 +13,7 @@ import flax.nnx as nnx
 from typing_extensions import override
 import tyro
 
+import openpi.models.act_config as act_config
 import openpi.models.model as _model
 import openpi.models.pi0_config as pi0_config
 import openpi.models.pi0_fast as pi0_fast
@@ -178,6 +179,15 @@ class ModelTransformFactory(GroupFactory):
                             action_horizon=model_config.action_horizon,
                             action_dim=model_config.action_dim,
                         )
+                    ],
+                )
+            case _model.ModelType.ACT:
+                # ACT has no language / VLM component, so it does NOT tokenize a prompt.
+                # It only needs resized images and state/actions padded to action_dim.
+                return _transforms.Group(
+                    inputs=[
+                        _transforms.ResizeImages(224, 224),
+                        _transforms.PadStatesAndActions(model_config.action_dim),
                     ],
                 )
 
@@ -1066,6 +1076,38 @@ _CONFIGS = [
         ),
     ),
     #
+    # ACT for BrainCo (56D), trained from scratch -- parallel algorithm to pi0.5 above.
+    # Reuses the exact same BrainCo data config; only the model differs.
+    #
+    TrainConfig(
+        name="act_brainco_56d",
+        checkpoint_base_dir="./checkpoints",
+        model=act_config.ACTConfig(action_dim=56, action_horizon=100),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco",  # Not used when lerobot_datasets is set
+            base_config=DataConfig(
+                prompt_from_task=True,  # carried but ignored by ACT (no language input)
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id="<path_to_lerobot_dataset_1>",
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+        ),
+        # ACT trains from scratch -- no pretrained checkpoint (default NoOpWeightLoader).
+        num_train_steps=100_000,
+        batch_size=64,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=1e-4,
+            decay_steps=100_000,
+            decay_lr=1e-5,
+        ),
+    ),
+    #
     # Debugging configs.
     #
     TrainConfig(
@@ -1098,6 +1140,26 @@ _CONFIGS = [
         num_train_steps=10,
         overwrite=True,
         exp_name="debug_pi05",
+        wandb_enabled=False,
+    ),
+    TrainConfig(
+        name="debug_act",
+        model=act_config.ACTConfig(
+            action_dim=24,
+            action_horizon=10,
+            hidden_dim=64,
+            dim_feedforward=128,
+            num_encoder_layers=1,
+            num_decoder_layers=1,
+            num_cvae_layers=1,
+            num_heads=2,
+            latent_dim=8,
+        ),
+        data=FakeDataConfig(),
+        batch_size=2,
+        num_train_steps=4,
+        overwrite=True,
+        exp_name="debug_act",
         wandb_enabled=False,
     ),
     # RoboArena & PolaRiS configs.
