@@ -1147,6 +1147,7 @@ _CONFIGS = [
         name="act_brainco_56d",
         checkpoint_base_dir="./checkpoints",
         model=act_config.ACTConfig(action_dim=56, action_horizon=100),
+        ema_decay=None,
         data=LeRobotBrainCoDataConfig(
             repo_id="brainco",  # Not used when lerobot_datasets is set
             base_config=DataConfig(
@@ -1177,6 +1178,7 @@ _CONFIGS = [
         name="act_brainco_revo3_pick_place_56d",
         checkpoint_base_dir="./checkpoints",
         model=act_config.ACTConfig(action_dim=56, action_horizon=100),
+        ema_decay=None,
         data=LeRobotBrainCoDataConfig(
             repo_id="brainco_revo3_pick_place_56d",
             base_config=DataConfig(
@@ -1261,6 +1263,7 @@ _CONFIGS = [
         data=FakeDataConfig(),
         batch_size=2,
         num_train_steps=4,
+        ema_decay=None,
         overwrite=True,
         exp_name="debug_act",
         wandb_enabled=False,
