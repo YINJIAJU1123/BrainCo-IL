@@ -184,9 +184,11 @@ class ModelTransformFactory(GroupFactory):
             case _model.ModelType.ACT:
                 # ACT has no language / VLM component, so it does NOT tokenize a prompt.
                 # It only needs resized images and state/actions padded to action_dim.
+                # Drop any prompt carried by LeRobot task metadata before JAX device_put.
                 return _transforms.Group(
                     inputs=[
                         _transforms.ResizeImages(224, 224),
+                        _transforms.DropPrompt(),
                         _transforms.PadStatesAndActions(model_config.action_dim),
                     ],
                 )

@@ -112,6 +112,15 @@ class InjectDefaultPrompt(DataTransformFn):
 
 
 @dataclasses.dataclass(frozen=True)
+class DropPrompt(DataTransformFn):
+    """Remove language prompts for models that do not consume language inputs."""
+
+    def __call__(self, data: DataDict) -> DataDict:
+        data.pop("prompt", None)
+        return data
+
+
+@dataclasses.dataclass(frozen=True)
 class Normalize(DataTransformFn):
     norm_stats: at.PyTree[NormStats] | None
     # If true, will use quantile normalization. Otherwise, normal z-score normalization will be used.
