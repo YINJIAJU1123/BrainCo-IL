@@ -3,6 +3,13 @@ assets/
 checkpoints/
 data/
 wandb/
+output/
+outputs/
+tmp/
+
+# Local OS / IDE files.
+.DS_Store
+.idea/
 
 # ...but keep documentation media (README demo video, diagrams, etc.).
 !docs/assets/

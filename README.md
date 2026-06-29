@@ -1,4 +1,4 @@
-# wuji-openpi
+# brainco-openpi
 
 [中文版](README_zh.md)
 
