@@ -13,6 +13,7 @@ import flax.nnx as nnx
 from typing_extensions import override
 import tyro
 
+import openpi.models.act_config as act_config
 import openpi.models.model as _model
 import openpi.models.pi0_config as pi0_config
 import openpi.models.pi0_fast as pi0_fast
@@ -20,7 +21,7 @@ import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
-import openpi.policies.wuji_policy as wuji_policy
+import openpi.policies.brainco_policy as brainco_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
@@ -178,6 +179,15 @@ class ModelTransformFactory(GroupFactory):
                             action_horizon=model_config.action_horizon,
                             action_dim=model_config.action_dim,
                         )
+                    ],
+                )
+            case _model.ModelType.ACT:
+                # ACT has no language / VLM component, so it does NOT tokenize a prompt.
+                # It only needs resized images and state/actions padded to action_dim.
+                return _transforms.Group(
+                    inputs=[
+                        _transforms.ResizeImages(224, 224),
+                        _transforms.PadStatesAndActions(model_config.action_dim),
                     ],
                 )
 
@@ -375,24 +385,25 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
 
 
 @dataclasses.dataclass(frozen=True)
-class LeRobotWujiDataConfig(DataConfigFactory):
+class LeRobotBrainCoDataConfig(DataConfigFactory):
     """
-    Config for Wuji robot (dual-arm dual-dexterous-hand) dataset.
+    Config for BrainCo robot (dual-arm dual-dexterous-hand) dataset.
 
     Dataset features:
-    - observation.state: configurable dims (dual arms + dual hands)
-    - action: configurable dims (full dimension)
+    - observation.state: 56 dims (7 left arm + 21 left hand + 7 right arm + 21 right hand)
+    - action: 56 dims (full dimension)
     - observation.images.cam_left_wrist: (480, 640, 3)
     - observation.images.cam_right_wrist: (480, 640, 3)
     - observation.images.stereo_right or observation.images.cam_head
 
-    Action projection layers (action_in_proj, action_out_proj) may need to be
+    This config uses the full 56 dimensions, requiring a model with action_dim=56.
+    Action projection layers (action_in_proj, action_out_proj) will need to be
     initialized from scratch when loading pretrained weights.
     """
 
     extra_delta_transform: bool = False
     arm_dof: int = 7
-    hand_dof: int = 20
+    hand_dof: int = 21
     head_camera_key: str = "observation.images.stereo_right"
     revo3_eef_joint_hand_to_joint_hand: bool = False
     # Action key name in the raw dataset (used by LeRobot loader BEFORE repack transform)
@@ -419,22 +430,22 @@ class LeRobotWujiDataConfig(DataConfigFactory):
         input_transforms = []
         if self.revo3_eef_joint_hand_to_joint_hand:
             input_transforms.append(
-                wuji_policy.WujiRevo3EefJointHandToJointHand(
+                brainco_policy.BrainCoRevo3EefJointHandToJointHand(
                     arm_dof=self.arm_dof,
                     hand_dof=self.hand_dof,
                 )
             )
-        input_transforms.append(wuji_policy.WujiInputs(model_type=model_config.model_type))
+        input_transforms.append(brainco_policy.BrainCoInputs(model_type=model_config.model_type))
 
         data_transforms = _transforms.Group(
             inputs=input_transforms,
-            outputs=[wuji_policy.WujiOutputs(action_dim=model_config.action_dim)],
+            outputs=[brainco_policy.BrainCoOutputs(action_dim=model_config.action_dim)],
         )
 
         # Apply delta action transform if needed (for absolute action data)
-        # For Wuji: apply delta to arm joints, keep hand joints as-is
+        # For BrainCo: apply delta to arm joints, keep hand joints as-is
         if self.extra_delta_transform:
-            # Full layout: left arm + left hand + right arm + right hand.
+            # Full 56D: Left arm (7) + Left hand (21) + Right arm (7) + Right hand (21)
             # Apply delta to arms, keep hands absolute
             delta_action_mask = _transforms.make_bool_mask(
                 self.arm_dof,
@@ -1041,15 +1052,15 @@ _CONFIGS = [
         num_train_steps=20_000,
     ),
     #
-    # Wuji dual-arm dual-dexterous-hand configs.
+    # BrainCo dual-arm dual-dexterous-hand configs (56D).
     #
     TrainConfig(
-        # Multi-dataset training for Wuji with 54D
-        name="pi05_wuji_multi_54d",
+        # Multi-dataset training for BrainCo with 56D
+        name="pi05_brainco_multi_56d",
         checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(pi05=True, action_dim=54, action_horizon=100, max_token_len=256),
-        data=LeRobotWujiDataConfig(
-            repo_id="wuji",  # Not used when lerobot_datasets is set
+        model=pi0_config.Pi0Config(pi05=True, action_dim=56, action_horizon=100, max_token_len=256),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco",  # Not used when lerobot_datasets is set
             base_config=DataConfig(
                 prompt_from_task=True,
                 # Define multiple datasets (weights are ignored in concat mode)
@@ -1084,56 +1095,14 @@ _CONFIGS = [
         ),
     ),
     TrainConfig(
-        # Multi-dataset training for Wuji with 56D:
-        # dual arms 14 + left hand 21 + right hand 21.
-        name="pi05_wuji_multi_56d",
-        checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(pi05=True, action_dim=56, action_horizon=100, max_token_len=256),
-        data=LeRobotWujiDataConfig(
-            repo_id="wuji",
-            base_config=DataConfig(
-                prompt_from_task=True,
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id="<path_to_lerobot_dataset_1>",
-                        weight=1.0,
-                    ),
-                    LeRobotDataset(
-                        repo_id="<path_to_lerobot_dataset_2>",
-                        weight=1.0,
-                    ),
-                    LeRobotDataset(
-                        repo_id="<path_to_lerobot_dataset_3>",
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-            arm_dof=7,
-            hand_dof=21,
-        ),
-        weight_loader=weight_loaders.PartialCheckpointWeightLoader(
-            "gs://openpi-assets/checkpoints/pi05_base/params"
-        ),
-        num_train_steps=30_000,
-        batch_size=64,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=5e-5,
-            decay_steps=30_000,
-            decay_lr=5e-6,
-        ),
-    ),
-    TrainConfig(
         # Smoke-test config for the 2026-06-16 Revo3 pick-and-place bread sample.
         # The raw dataset is 70D: left/right EEF pose + arm joints + hand joints.
         # We drop the EEF pose and reorder to the deployed 56D layout.
-        name="pi05_wuji_revo3_pick_place_56d",
+        name="pi05_brainco_revo3_pick_place_56d",
         checkpoint_base_dir="./checkpoints",
         model=pi0_config.Pi0Config(pi05=True, action_dim=56, action_horizon=100, max_token_len=256),
-        data=LeRobotWujiDataConfig(
-            repo_id="wuji_revo3_pick_place_56d",
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco_revo3_pick_place_56d",
             base_config=DataConfig(
                 prompt_from_task=True,
                 lerobot_datasets=(
@@ -1169,6 +1138,77 @@ _CONFIGS = [
         ),
     ),
     #
+    # ACT for BrainCo (56D), trained from scratch -- parallel algorithm to pi0.5 above.
+    # Reuses the exact same BrainCo data config; only the model differs.
+    #
+    TrainConfig(
+        name="act_brainco_56d",
+        checkpoint_base_dir="./checkpoints",
+        model=act_config.ACTConfig(action_dim=56, action_horizon=100),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco",  # Not used when lerobot_datasets is set
+            base_config=DataConfig(
+                prompt_from_task=True,  # carried but ignored by ACT (no language input)
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id="<path_to_lerobot_dataset_1>",
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+        ),
+        # ACT trains from scratch -- no pretrained checkpoint (default NoOpWeightLoader).
+        num_train_steps=100_000,
+        batch_size=64,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=1e-4,
+            decay_steps=100_000,
+            decay_lr=1e-5,
+        ),
+    ),
+    TrainConfig(
+        # ACT smoke-test config on the same Revo3 pick-and-place dataset as pi05_brainco_revo3_pick_place_56d.
+        # ACT trains from scratch and ignores language prompts, but it still reuses the same BrainCo data transforms.
+        name="act_brainco_revo3_pick_place_56d",
+        checkpoint_base_dir="./checkpoints",
+        model=act_config.ACTConfig(action_dim=56, action_horizon=100),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco_revo3_pick_place_56d",
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id=(
+                            "/mnt/data_nas/ruibin/dataset/"
+                            "original-revomate_revo3_pick_and_place/original/"
+                            "lerobot_v21/revomate_revo3_mit_3cam_test"
+                        ),
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+            head_camera_key="observation.images.cam_head",
+            revo3_eef_joint_hand_to_joint_hand=True,
+        ),
+        num_train_steps=1_000,
+        batch_size=8,
+        save_interval=500,
+        keep_period=500,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=100,
+            peak_lr=1e-4,
+            decay_steps=1_000,
+            decay_lr=1e-5,
+        ),
+    ),
+    #
     # Debugging configs.
     #
     TrainConfig(
@@ -1201,6 +1241,26 @@ _CONFIGS = [
         num_train_steps=10,
         overwrite=True,
         exp_name="debug_pi05",
+        wandb_enabled=False,
+    ),
+    TrainConfig(
+        name="debug_act",
+        model=act_config.ACTConfig(
+            action_dim=24,
+            action_horizon=10,
+            hidden_dim=64,
+            dim_feedforward=128,
+            num_encoder_layers=1,
+            num_decoder_layers=1,
+            num_cvae_layers=1,
+            num_heads=2,
+            latent_dim=8,
+        ),
+        data=FakeDataConfig(),
+        batch_size=2,
+        num_train_steps=4,
+        overwrite=True,
+        exp_name="debug_act",
         wandb_enabled=False,
     ),
     # RoboArena & PolaRiS configs.

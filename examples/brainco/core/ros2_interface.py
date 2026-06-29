@@ -335,7 +335,8 @@ class ROS2Interface:
         Publish an action command
 
         Args:
-            action: action array matching the configured arm/hand dimensions.
+            action: action array packed as arm + hand for single-arm mode, or
+                left_arm + left_hand + right_arm + right_hand for dual-arm mode.
         """
         action_dim = len(action)
         arm_dof = self._config.arm_dof
@@ -343,17 +344,12 @@ class ROS2Interface:
         single_arm_dim = arm_dof + hand_dof
         expected_dim = single_arm_dim * (2 if self._config.is_dual_arm() else 1)
         stamp = self._node.get_clock().now().to_msg()
+        arm_dof = self._config.arm_dof
+        hand_dof = self._config.hand_dof
+        single_arm_dim = arm_dof + hand_dof
+        dual_arm_dim = 2 * single_arm_dim
 
-        if action_dim != expected_dim:
-            logger.warning(
-                "Unexpected action dimension: got %d, expected %d for arm_mode=%s",
-                action_dim,
-                expected_dim,
-                self._config.arm_mode,
-            )
-            return
-
-        if not self._config.is_dual_arm():
+        if action_dim == single_arm_dim:
             # Single-arm mode
             arm_cmd = action[:arm_dof]
             hand_cmd = action[arm_dof:single_arm_dim]
@@ -365,7 +361,7 @@ class ROS2Interface:
                 self._publish_joint_cmd("right_arm", arm_cmd, stamp)
                 self._publish_joint_cmd("right_hand", hand_cmd, stamp)
 
-        else:
+        elif action_dim == dual_arm_dim:
             # Dual-arm mode
             idx = 0
             left_arm_cmd = action[idx : idx + arm_dof]
@@ -383,6 +379,14 @@ class ROS2Interface:
             if self._config.use_right_arm():
                 self._publish_joint_cmd("right_arm", right_arm_cmd, stamp)
                 self._publish_joint_cmd("right_hand", right_hand_cmd, stamp)
+
+        else:
+            logger.warning(
+                "Unknown action dimension: %d (expected %d for single-arm or %d for dual-arm)",
+                action_dim,
+                single_arm_dim,
+                dual_arm_dim,
+            )
 
     def publish_action_dict(self, action_dict: dict[str, np.ndarray]) -> None:
         """
@@ -413,7 +417,7 @@ class ROS2Interface:
         msg.header.stamp = stamp
         msg.header.frame_id = ""
 
-        # Only set position, matching wuji_client behavior
+        # Only set position, matching the expected low-level joint command format.
         msg.position = [float(x) for x in cmd_list]
 
         self._action_publishers[key].publish(msg)

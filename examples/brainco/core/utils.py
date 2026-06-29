@@ -191,16 +191,14 @@ def pack_action_array(
     Pack separated arm/hand actions into a unified action array
 
     Args:
-        left_arm: left arm joints (7 DOF)
+        left_arm: left arm joints
         left_hand: left hand joints
-        right_arm: right arm joints (7 DOF)
+        right_arm: right arm joints
         right_hand: right hand joints
         arm_mode: arm mode ("single_left", "single_right", "dual", "both")
 
     Returns:
-        Packed action array
-            - Single arm: arm + hand
-            - Dual arm: left_arm + left_hand + right_arm + right_hand
+        Packed action array in arm + hand order for each side.
     """
     action = []
 
@@ -240,8 +238,6 @@ def unpack_action_array(
     result = {}
     idx = 0
 
-    arm_dof + hand_dof
-
     if arm_mode == "single_left":
         result["left_arm"] = action[idx : idx + arm_dof]
         idx += arm_dof
@@ -280,8 +276,8 @@ def build_observation_state(
         State vector (numpy array)
 
     State order:
-        - Single arm: arm + optional ee pose + hand
-        - Dual arm: left arm + optional left ee pose + left hand + right arm + optional right ee pose + right hand
+        - Single arm: arm + [ee] + hand
+        - Dual arm: left_arm + [left_ee] + left_hand + right_arm + [right_ee] + right_hand
     """
     state_parts = []
 

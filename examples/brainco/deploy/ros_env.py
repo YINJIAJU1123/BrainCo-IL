@@ -18,24 +18,24 @@ import rclpy
 from rclpy.node import Node
 from typing_extensions import override
 
-from wuji.core import DeployConfig
-from wuji.core import ROS2Interface
-from wuji.core import SyncedData
-from wuji.core.utils import build_observation_state
+from brainco.core import DeployConfig
+from brainco.core import ROS2Interface
+from brainco.core import SyncedData
+from brainco.core.utils import build_observation_state
 
 logger = logging.getLogger(__name__)
 
 
 class OpenPIRosEnvironment(_environment.Environment):
     """
-    Wuji robot ROS2 environment (OpenPI)
+    BrainCo robot ROS2 environment (OpenPI)
 
     Implements the Environment interface and interacts with the robot through ROS2 topics:
     - Subscribes to joint states and camera images
     - Uses timestamp synchronization to align data from multiple topics
     - Publishes action commands
 
-    Supports single-arm (27D) or dual-arm (54D) control
+    Supports configurable single-arm or dual-arm control.
     """
 
     def __init__(self, node: Node, config: DeployConfig):
@@ -126,7 +126,7 @@ class OpenPIRosEnvironment(_environment.Environment):
             synced_data = self._latest_synced
 
         # Build the state vector
-        # Order: left_arm, left_hand, right_arm, right_hand; dimensions come from the deployment config.
+        # Order: left_arm, left_hand, right_arm, right_hand.
         state = build_observation_state(
             synced_data,
             arm_mode=self._config.arm_mode,

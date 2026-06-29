@@ -1,7 +1,7 @@
 [project]
 name = "openpi"
 version = "0.1.0"
-description = "Physical Intelligence open source repo"
+description = "BrainCo OpenPI fork for high-dimensional VLA fine-tuning"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE" }
@@ -42,7 +42,7 @@ dependencies = [
 
 
 [project.urls]
-Repository = "https://github.com/Physical-Intelligence/openpi"
+Repository = "https://github.com/YINJIAJU1123/openpi"
 
 [dependency-groups]
 dev = [

@@ -31,19 +31,19 @@ python scripts/visualize_lerobot_dataset.py "$DATA" \
 在 Mac 上拉取结果：
 
 ```bash
-mkdir -p /Users/larrybb/Downloads/wuji_data_quality/revo3_pick_place
+mkdir -p /Users/larrybb/Downloads/brainco_data_quality/revo3_pick_place
 
 rsync -azP \
   -e 'ssh -i ~/.ssh/id_rsa_remote -p 6007' \
   ruibin@8.130.44.94:/home/ruibin/wuji-openpi/outputs/data_quality/revo3_pick_place/ \
-  /Users/larrybb/Downloads/wuji_data_quality/revo3_pick_place/
+  /Users/larrybb/Downloads/brainco_data_quality/revo3_pick_place/
 ```
 
 然后在 Mac 打开：
 
 ```bash
 cd /Users/larrybb/PycharmProjects/wuji-openpi
-uv run rerun /Users/larrybb/Downloads/wuji_data_quality/revo3_pick_place/data_quality.rrd
+uv run rerun /Users/larrybb/Downloads/brainco_data_quality/revo3_pick_place/data_quality.rrd
 ```
 
 只生成检查报告、不加载 Rerun：

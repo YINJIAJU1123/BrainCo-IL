@@ -1045,7 +1045,7 @@ def _log_rerun(
             "Rerun is not installed. Install the project environment (rerun-sdk is included by LeRobot)."
         ) from error
 
-    rr.init("wuji_lerobot_data_quality", spawn=spawn)
+    rr.init("brainco_lerobot_data_quality", spawn=spawn)
     if rrd_path is not None:
         rrd_path.parent.mkdir(parents=True, exist_ok=True)
         rr.save(str(rrd_path))

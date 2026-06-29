@@ -1,8 +1,8 @@
-"""Policy transforms for Wuji robot (dual-arm dual-dexterous-hand).
+"""Policy transforms for BrainCo robot (dual-arm dual-dexterous-hand).
 
 Dataset structure:
-- observation.state: configurable dims (dual arms + dual hands)
-- action: configurable dims
+- observation.state: 56 dims (7 left arm + 21 left hand + 7 right arm + 21 right hand)
+- action: 56 dims
 - observation.images.cam_left_wrist: (480, 640, 3)
 - observation.images.cam_right_wrist: (480, 640, 3)
 - observation.images.stereo_right or cam_head: head / external camera
@@ -16,15 +16,14 @@ import numpy as np
 from openpi import transforms
 from openpi.models import model as _model
 
-# Default Wuji robot action dimension for this deployment:
-# dual arms 14 + left hand 21 + right hand 21.
-WUJI_ACTION_DIM = 56
+# BrainCo robot action dimension: dual-arm dual-dexterous-hand
+BRAINCO_ACTION_DIM = 56
 
 
-def make_wuji_example() -> dict:
-    """Creates a random input example for the Wuji policy."""
+def make_brainco_example() -> dict:
+    """Creates a random input example for the BrainCo policy."""
     return {
-        "observation/state": np.random.rand(WUJI_ACTION_DIM).astype(np.float32),
+        "observation/state": np.random.rand(BRAINCO_ACTION_DIM).astype(np.float32),
         "observation/image": np.random.randint(256, size=(480, 640, 3), dtype=np.uint8),
         "observation/left_wrist_image": np.random.randint(256, size=(480, 640, 3), dtype=np.uint8),
         "observation/right_wrist_image": np.random.randint(256, size=(480, 640, 3), dtype=np.uint8),
@@ -43,7 +42,7 @@ def _parse_image(image) -> np.ndarray:
 
 
 @dataclasses.dataclass(frozen=True)
-class WujiRevo3EefJointHandToJointHand(transforms.DataTransformFn):
+class BrainCoRevo3EefJointHandToJointHand(transforms.DataTransformFn):
     """Convert Revo3 70D EEF+joint+hand vectors to the deployed 56D joint+hand layout.
 
     Source layout:
@@ -103,8 +102,8 @@ class WujiRevo3EefJointHandToJointHand(transforms.DataTransformFn):
 
 
 @dataclasses.dataclass(frozen=True)
-class WujiInputs(transforms.DataTransformFn):
-    """Convert inputs from Wuji dataset to the format expected by Pi0 models.
+class BrainCoInputs(transforms.DataTransformFn):
+    """Convert inputs from BrainCo dataset to the format expected by Pi0 models.
 
     Used for both training and inference.
     """
@@ -140,13 +139,13 @@ class WujiInputs(transforms.DataTransformFn):
 
 
 @dataclasses.dataclass(frozen=True)
-class WujiOutputs(transforms.DataTransformFn):
-    """Convert model outputs back to Wuji action format.
+class BrainCoOutputs(transforms.DataTransformFn):
+    """Convert model outputs back to BrainCo action format.
 
     Used for inference only.
     """
 
-    action_dim: int = WUJI_ACTION_DIM
+    action_dim: int = BRAINCO_ACTION_DIM
 
     def __call__(self, data: dict) -> dict:
         actions = np.asarray(data["actions"])

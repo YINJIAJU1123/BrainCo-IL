@@ -59,7 +59,7 @@ class PartialCheckpointWeightLoader(WeightLoader):
     """Loads weights from a checkpoint, skipping layers with shape mismatches.
 
     This is useful when loading pretrained weights into a model with different action dimensions.
-    For example, loading 32-dim weights into a 54-dim model will skip action_in_proj and
+    For example, loading 32-dim weights into a 58-dim model will skip action_in_proj and
     action_out_proj layers while loading all other compatible layers.
 
     Compatible with:
