@@ -30,7 +30,7 @@ dependencies = [
     "tqdm-loggable>=0.2",
     "typing-extensions>=4.12.2",
     "tyro>=0.9.5",
-    "wandb>=0.19.1",
+    "swanlab>=0.8.4",
     "filelock>=3.16.1",
     "beartype==0.19.0",
     "chex>=0.1.90",
@@ -127,7 +127,7 @@ unfixable = [
 force-single-line = true
 force-sort-within-sections = true
 single-line-exclusions = ["collections.abc", "typing", "typing_extensions"]
-known-third-party = ["wandb"]
+known-third-party = ["swanlab"]
 
 [build-system]
 requires = ["hatchling"]

@@ -1,7 +1,7 @@
 """Policy transforms for BrainCo robot (dual-arm dual-dexterous-hand).
 
 Dataset structure:
-- observation.state: 56 dims (7 left arm + 21 left hand + 7 right arm + 21 right hand)
+- observation.state: 56 dims (7 left arm + 7 right arm + 21 left hand + 21 right hand)
 - action: 56 dims
 - observation.images.cam_left_wrist: (480, 640, 3)
 - observation.images.cam_right_wrist: (480, 640, 3)
@@ -43,7 +43,7 @@ def _parse_image(image) -> np.ndarray:
 
 @dataclasses.dataclass(frozen=True)
 class BrainCoRevo3EefJointHandToJointHand(transforms.DataTransformFn):
-    """Convert Revo3 70D EEF+joint+hand vectors to the deployed 56D joint+hand layout.
+    """Convert Revo3 70D EEF+joint+hand vectors to the original 56D dataset layout.
 
     Source layout:
     - left EEF pose: 7 dims
@@ -55,8 +55,8 @@ class BrainCoRevo3EefJointHandToJointHand(transforms.DataTransformFn):
 
     Target layout:
     - left arm joints
-    - left hand joints
     - right arm joints
+    - left hand joints
     - right hand joints
     """
 
@@ -75,8 +75,8 @@ class BrainCoRevo3EefJointHandToJointHand(transforms.DataTransformFn):
         return np.asarray(
             [
                 *range(left_arm_start, left_arm_start + self.arm_dof),
-                *range(left_hand_start, left_hand_start + self.hand_dof),
                 *range(right_arm_start, right_arm_start + self.arm_dof),
+                *range(left_hand_start, left_hand_start + self.hand_dof),
                 *range(right_hand_start, right_hand_start + self.hand_dof),
             ],
             dtype=np.int64,

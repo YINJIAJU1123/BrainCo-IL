@@ -392,7 +392,7 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
     Config for BrainCo robot (dual-arm dual-dexterous-hand) dataset.
 
     Dataset features:
-    - observation.state: 56 dims (7 left arm + 21 left hand + 7 right arm + 21 right hand)
+    - observation.state: 56 dims (7 left arm + 7 right arm + 21 left hand + 21 right hand)
     - action: 56 dims (full dimension)
     - observation.images.cam_left_wrist: (480, 640, 3)
     - observation.images.cam_right_wrist: (480, 640, 3)
@@ -447,12 +447,12 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
         # Apply delta action transform if needed (for absolute action data)
         # For BrainCo: apply delta to arm joints, keep hand joints as-is
         if self.extra_delta_transform:
-            # Full 56D: Left arm (7) + Left hand (21) + Right arm (7) + Right hand (21)
+            # Full 56D: Left arm (7) + Right arm (7) + Left hand (21) + Right hand (21)
             # Apply delta to arms, keep hands absolute
             delta_action_mask = _transforms.make_bool_mask(
                 self.arm_dof,
-                -self.hand_dof,
                 self.arm_dof,
+                -self.hand_dof,
                 -self.hand_dof,
             )
 
@@ -1097,9 +1097,9 @@ _CONFIGS = [
         ),
     ),
     TrainConfig(
-        # Smoke-test config for the 2026-06-16 Revo3 pick-and-place bread sample.
+        # Revo3 pick-and-place bread dataset collected on 2026-06-29.
         # The raw dataset is 70D: left/right EEF pose + arm joints + hand joints.
-        # We drop the EEF pose and reorder to the deployed 56D layout.
+        # We drop the EEF pose and reorder to the original 56D dataset layout.
         name="pi05_brainco_revo3_pick_place_56d",
         checkpoint_base_dir="./checkpoints",
         model=pi0_config.Pi0Config(pi05=True, action_dim=56, action_horizon=100, max_token_len=256),
@@ -1111,8 +1111,8 @@ _CONFIGS = [
                     LeRobotDataset(
                         repo_id=(
                             "/mnt/data_nas/ruibin/dataset/"
-                            "original-revomate_revo3_pick_and_place/original/"
-                            "lerobot_v21/revomate_revo3_mit_3cam_test"
+                            "revomate_revo3_full/zm.6.29.18.29/"
+                            "revotron_mit_revo3_mit_3cam_zm.6.29.18.29"
                         ),
                         weight=1.0,
                     ),
@@ -1173,7 +1173,7 @@ _CONFIGS = [
         ),
     ),
     TrainConfig(
-        # ACT smoke-test config on the same Revo3 pick-and-place dataset as pi05_brainco_revo3_pick_place_56d.
+        # ACT config on the same Revo3 pick-and-place dataset as pi05_brainco_revo3_pick_place_56d.
         # ACT trains from scratch and ignores language prompts, but it still reuses the same BrainCo data transforms.
         name="act_brainco_revo3_pick_place_56d",
         checkpoint_base_dir="./checkpoints",
@@ -1187,8 +1187,8 @@ _CONFIGS = [
                     LeRobotDataset(
                         repo_id=(
                             "/mnt/data_nas/ruibin/dataset/"
-                            "original-revomate_revo3_pick_and_place/original/"
-                            "lerobot_v21/revomate_revo3_mit_3cam_test"
+                            "revomate_revo3_full/zm.6.29.18.29/"
+                            "revotron_mit_revo3_mit_3cam_zm.6.29.18.29"
                         ),
                         weight=1.0,
                     ),
