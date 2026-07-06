@@ -2,6 +2,7 @@ import dataclasses
 import functools
 import logging
 import os
+import pathlib
 import platform
 from typing import Any
 
@@ -65,6 +66,11 @@ def init_swanlab(config: _config.TrainConfig, *, resuming: bool, enabled: bool =
         "mode": os.environ.get("SWANLAB_MODE", "offline"),
         "config": dataclasses.asdict(config),
     }
+    if api_key_file := os.environ.get("SWANLAB_API_KEY_FILE"):
+        api_key = pathlib.Path(api_key_file).expanduser().read_text().strip()
+        if not api_key:
+            raise ValueError(f"SWANLAB_API_KEY_FILE is empty: {api_key_file}")
+        init_kwargs["settings"] = swanlab.Settings(api_key=api_key, interactive=False)
     if resuming:
         run_id_path = ckpt_dir / "swanlab_id.txt"
         if run_id_path.exists():
