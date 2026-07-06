@@ -1141,6 +1141,57 @@ _CONFIGS = [
         ),
     ),
     TrainConfig(
+        # JAX full-parameter fine-tuning on the 2026-06-29 Revo3 pick-and-place dataset.
+        # action_horizon is the training action chunk size.
+        name="pi05_brainco_revo3_pick_place_56d_full_chunk16",
+        project_name="imitation",
+        checkpoint_base_dir="./checkpoints",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=56,
+            action_horizon=16,
+            max_token_len=256,
+        ),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco_revo3_pick_place_56d_full_chunk16",
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id=(
+                            "/mnt/data_nas/ruibin/dataset/"
+                            "revomate_revo3_full/zm.6.29.18.29/"
+                            "revotron_mit_revo3_mit_3cam_zm.6.29.18.29"
+                        ),
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+            head_camera_key="observation.images.cam_head",
+            revo3_eef_joint_hand_to_joint_hand=True,
+        ),
+        weight_loader=weight_loaders.PartialCheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi05_base/params"
+        ),
+        ema_decay=None,
+        num_train_steps=40_000,
+        batch_size=8,
+        num_workers=0,
+        log_interval=10,
+        save_interval=4000,
+        keep_period=4000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=40_000,
+            decay_lr=5e-6,
+        ),
+    ),
+    TrainConfig(
         # JAX LoRA fine-tuning on the 2026-06-29 Revo3 pick-and-place dataset.
         # action_horizon is the training action chunk size.
         name="pi05_brainco_revo3_pick_place_56d_lora_chunk16",
