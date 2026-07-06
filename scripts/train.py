@@ -60,7 +60,7 @@ def init_swanlab(config: _config.TrainConfig, *, resuming: bool, enabled: bool =
 
     init_kwargs = {
         "project": config.project_name,
-        "workspace": os.environ.get("SWANLAB_WORKSPACE", "brainco"),
+        "workspace": os.environ.get("SWANLAB_WORKSPACE", "YinJiaju"),
         "experiment_name": config.exp_name,
         "name": config.exp_name,
         "mode": os.environ.get("SWANLAB_MODE", "offline"),
@@ -70,6 +70,7 @@ def init_swanlab(config: _config.TrainConfig, *, resuming: bool, enabled: bool =
         api_key = pathlib.Path(api_key_file).expanduser().read_text().strip()
         if not api_key:
             raise ValueError(f"SWANLAB_API_KEY_FILE is empty: {api_key_file}")
+        swanlab.login(api_key=api_key, relogin=True, save=False)
         init_kwargs["settings"] = swanlab.Settings(api_key=api_key, interactive=False)
     if resuming:
         run_id_path = ckpt_dir / "swanlab_id.txt"
