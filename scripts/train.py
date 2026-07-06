@@ -59,6 +59,7 @@ def init_swanlab(config: _config.TrainConfig, *, resuming: bool, enabled: bool =
 
     init_kwargs = {
         "project": config.project_name,
+        "workspace": os.environ.get("SWANLAB_WORKSPACE", "brainco"),
         "experiment_name": config.exp_name,
         "name": config.exp_name,
         "mode": os.environ.get("SWANLAB_MODE", "offline"),
