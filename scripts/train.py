@@ -4,7 +4,19 @@ import logging
 import os
 import pathlib
 import platform
+import warnings
 from typing import Any
+
+warnings.filterwarnings(
+    "ignore",
+    message="The pynvml package is deprecated.*",
+    category=FutureWarning,
+)
+warnings.filterwarnings(
+    "ignore",
+    message="The video decoding and encoding capabilities of torchvision are deprecated.*",
+    category=UserWarning,
+)
 
 import etils.epath as epath
 import flax.nnx as nnx
