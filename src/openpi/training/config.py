@@ -633,6 +633,8 @@ class TrainConfig:
     save_interval: int = 1000
     # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
     keep_period: int | None = 5000
+    # Save the final training step even when it does not land on save_interval.
+    save_final_checkpoint: bool = True
 
     # If true, will overwrite the checkpoint directory if it already exists.
     overwrite: bool = False
@@ -1252,6 +1254,10 @@ _CONFIGS = [
         ),
         data=LeRobotBrainCoDataConfig(
             repo_id="brainco_revo3_0708_full_chunk16",
+            assets=AssetsConfig(
+                assets_dir="./assets/pi05_brainco_revo3_pick_place_56d_0708",
+                asset_id="brainco_revo3_pick_place_56d_0708",
+            ),
             base_config=DataConfig(
                 prompt_from_task=True,
                 lerobot_datasets=(
@@ -1302,6 +1308,10 @@ _CONFIGS = [
         ),
         data=LeRobotBrainCoDataConfig(
             repo_id="brainco_revo3_0708_lora_chunk16",
+            assets=AssetsConfig(
+                assets_dir="./assets/pi05_brainco_revo3_pick_place_56d_0708",
+                asset_id="brainco_revo3_pick_place_56d_0708",
+            ),
             base_config=DataConfig(
                 prompt_from_task=True,
                 lerobot_datasets=(
@@ -1337,6 +1347,138 @@ _CONFIGS = [
         log_interval=10,
         save_interval=4000,
         keep_period=4000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=40_000,
+            decay_lr=5e-6,
+        ),
+    ),
+    TrainConfig(
+        # ACT baseline on the same 2026-07-08 Revo3 data and action chunk as the pi05 configs above.
+        name="act_brainco_revo3_0708_chunk16",
+        project_name="imitation",
+        checkpoint_base_dir="./checkpoints",
+        model=act_config.ACTConfig(action_dim=56, action_horizon=16),
+        ema_decay=None,
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco_revo3_0708_act_chunk16",
+            assets=AssetsConfig(
+                assets_dir="./assets/pi05_brainco_revo3_pick_place_56d_0708",
+                asset_id="brainco_revo3_pick_place_56d_0708",
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id=(
+                            "/mnt/data_nas/ruibin/dataset/7-8-21-18/"
+                            "revotron_mit_revo3_mit_3cam_7-8-21-18_drop_42_45_gop10"
+                        ),
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+            head_camera_key="observation.images.cam_head",
+            revo3_eef_joint_hand_to_joint_hand=True,
+        ),
+        num_train_steps=40_000,
+        batch_size=16,
+        num_workers=8,
+        log_interval=10,
+        save_interval=4_000,
+        keep_period=4_000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=1e-4,
+            decay_steps=40_000,
+            decay_lr=1e-5,
+        ),
+    ),
+    TrainConfig(
+        # ACT baseline on the same 2026-07-12 GHT data and 56D transform as the pi0.5 config below.
+        name="act_brainco_revo3_0712_ght_56d",
+        project_name="imitation",
+        checkpoint_base_dir="./checkpoints",
+        model=act_config.ACTConfig(action_dim=56, action_horizon=16),
+        ema_decay=None,
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco_revo3_0712_ght_56d",
+            assets=AssetsConfig(
+                assets_dir="./assets/pi05_brainco_revo3_0712_ght_56d",
+                asset_id="brainco_revo3_0712_ght_56d",
+            ),
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id="/mnt/data_nas/dataset/revotron_mit_revo3_mit_3cam_ght_7_12_18_20",
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+            head_camera_key="observation.images.cam_head",
+            revo3_eef_joint_hand_to_joint_hand=True,
+        ),
+        num_train_steps=40_000,
+        batch_size=16,
+        num_workers=8,
+        log_interval=10,
+        save_interval=4_000,
+        keep_period=4_000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=1e-4,
+            decay_steps=40_000,
+            decay_lr=1e-5,
+        ),
+    ),
+    TrainConfig(
+        # Pi0.5 full fine-tuning on the 2026-07-12 GHT collection. The raw state/action
+        # vectors are 70D; the Revo3 transform drops both 7D EEF poses and trains on 56D.
+        name="pi05_brainco_revo3_0712_ght_56d",
+        project_name="imitation",
+        checkpoint_base_dir="./checkpoints",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=56,
+            action_horizon=16,
+            max_token_len=256,
+        ),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco_revo3_0712_ght_56d",
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id="/mnt/data_nas/dataset/revotron_mit_revo3_mit_3cam_ght_7_12_18_20",
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+            head_camera_key="observation.images.cam_head",
+            revo3_eef_joint_hand_to_joint_hand=True,
+        ),
+        weight_loader=weight_loaders.PartialCheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        ema_decay=None,
+        num_train_steps=40_000,
+        batch_size=16,
+        num_workers=8,
+        log_interval=10,
+        save_interval=4_000,
+        keep_period=4_000,
         lr_schedule=_optimizer.CosineDecaySchedule(
             warmup_steps=1_000,
             peak_lr=5e-5,
