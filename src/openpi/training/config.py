@@ -1252,6 +1252,116 @@ _CONFIGS = [
             decay_lr=5e-6,
         ),
     ),
+    TrainConfig(
+        # JAX full-parameter fine-tuning on the 2026-07-08 Revo3 dataset.
+        # Raw data is 70D; transforms drop EEF pose and train on 56D joint/hand layout.
+        name="pi05_brainco_revo3_0708_full_chunk16",
+        project_name="imitation",
+        checkpoint_base_dir="./checkpoints",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=56,
+            action_horizon=16,
+            max_token_len=256,
+        ),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco_revo3_0708_full_chunk16",
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id=(
+                            "/mnt/data_nas/ruibin/dataset/7-8-21-18/"
+                            "revotron_mit_revo3_mit_3cam_7-8-21-18_drop_42_45_gop10"
+                        ),
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+            head_camera_key="observation.images.cam_head",
+            revo3_eef_joint_hand_to_joint_hand=True,
+        ),
+        weight_loader=weight_loaders.PartialCheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi05_base/params"
+        ),
+        ema_decay=None,
+        num_train_steps=40_000,
+        batch_size=16,
+        num_workers=8,
+        log_interval=10,
+        save_interval=4000,
+        keep_period=4000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=40_000,
+            decay_lr=5e-6,
+        ),
+    ),
+    TrainConfig(
+        # JAX LoRA fine-tuning on the 2026-07-08 Revo3 dataset.
+        # LoRA is enabled through the *_lora Pi0.5 variants plus the freeze filter.
+        name="pi05_brainco_revo3_0708_lora_chunk16",
+        project_name="imitation",
+        checkpoint_base_dir="./checkpoints",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=56,
+            action_horizon=16,
+            max_token_len=256,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco_revo3_0708_lora_chunk16",
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id=(
+                            "/mnt/data_nas/ruibin/dataset/7-8-21-18/"
+                            "revotron_mit_revo3_mit_3cam_7-8-21-18_drop_42_45_gop10"
+                        ),
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+            head_camera_key="observation.images.cam_head",
+            revo3_eef_joint_hand_to_joint_hand=True,
+        ),
+        weight_loader=weight_loaders.PartialCheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi05_base/params"
+        ),
+        freeze_filter=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=56,
+            action_horizon=16,
+            max_token_len=256,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ).get_freeze_filter(),
+        ema_decay=None,
+        num_train_steps=40_000,
+        batch_size=16,
+        num_workers=8,
+        log_interval=10,
+        save_interval=4000,
+        keep_period=4000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=40_000,
+            decay_lr=5e-6,
+        ),
+    ),
     #
     # ACT for BrainCo (56D), trained from scratch -- parallel algorithm to pi0.5 above.
     # Reuses the exact same BrainCo data config; only the model differs.
