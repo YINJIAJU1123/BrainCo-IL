@@ -303,6 +303,7 @@ def main(config: _config.TrainConfig):
 
         if (step % config.save_interval == 0 and step > start_step) or step == config.num_train_steps - 1:
             _checkpoints.save_state(checkpoint_manager, train_state, data_loader, step)
+            checkpoint_manager.wait_until_finished()
             if jax.process_index() == 0:
                 _config_io.save_train_config(config, config.checkpoint_dir / str(step))
 
