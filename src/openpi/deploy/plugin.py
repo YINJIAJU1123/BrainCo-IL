@@ -9,6 +9,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
+from openpi import transforms
 from openpi.models import model as model_lib
 from openpi.policies import policy_config
 from openpi.training import config_io
@@ -19,6 +22,34 @@ DEFAULT_CAMERA_BINDINGS = {
     "left_wrist": "observation.images.cam_left_wrist",
     "right_wrist": "observation.images.cam_right_wrist",
 }
+RAW_IMAGE_CONTRACT = {
+    "shape": [-1, -1, 3],
+    "layout": "hwc",
+    "dtype": "uint8",
+    "color": "rgb",
+    "scale": "0to255",
+    "preprocessing_owner": "plugin",
+}
+POLICY_IMAGE_KEYS = (
+    "observation/image",
+    "observation/left_wrist_image",
+    "observation/right_wrist_image",
+)
+
+
+class ValidateRawImages:
+    """Fail fast unless the deploy caller follows the raw image contract."""
+
+    def __call__(self, data: dict[str, Any]) -> dict[str, Any]:
+        for key in POLICY_IMAGE_KEYS:
+            if key not in data:
+                raise ValueError(f"raw observation missing required image '{key}'")
+            image = np.asarray(data[key])
+            if image.dtype != np.uint8 or image.ndim != 3 or image.shape[-1] != 3:
+                raise ValueError(
+                    f"raw observation '{key}' must be RGB uint8 HWC, got shape={image.shape} dtype={image.dtype}"
+                )
+        return data
 
 
 def describe_policy(
@@ -54,6 +85,7 @@ def create_policy(
     return policy_config.create_trained_policy(
         train_config,
         checkpoint_dir,
+        repack_transforms=transforms.Group(inputs=(ValidateRawImages(),)),
         sample_kwargs=_sample_kwargs(train_config, opts),
         default_prompt=str(opts.get("default_prompt", "") or "") or None,
         pytorch_device=str(opts.get("device", "") or "") or None,
@@ -77,6 +109,11 @@ def _base_spec(
         "action_dim": action_dim,
         "action_horizon": action_horizon,
         "asset_id": asset_id,
+        "observation_contract": {
+            "version": 1,
+            "images": "raw_rgb_uint8_hwc",
+            "preprocessing_owner": "plugin",
+        },
         "inputs": {
             "state_key": "observation.state",
             "policy_input_map": {
@@ -91,7 +128,7 @@ def _base_spec(
                 {"kind": "joint_pos", "group": "left_hand", "dim": 21},
                 {"kind": "joint_pos", "group": "right_hand", "dim": 21},
             ],
-            "image_shape": [3, 224, 224],
+            "image_contract": dict(RAW_IMAGE_CONTRACT),
             "camera_bindings": dict(DEFAULT_CAMERA_BINDINGS),
         },
         "outputs": {
