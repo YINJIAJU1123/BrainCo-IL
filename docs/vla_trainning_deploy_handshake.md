@@ -146,6 +146,7 @@ train_config:
         clip_gradient_norm: 1.0
 
     ema_decay: null
+    freeze_strategy: none
 
     data:
       __class__: openpi.training.config.LeRobotBrainCoDataConfig
@@ -200,6 +201,40 @@ weight_loader:
 ```
 
 ACT 从头训练，不加载 `pi05_base` 权重；其余 BrainCo 数据配置、checkpoint 目录、batch、step、学习率等字段按实验需要调整。
+
+### 可序列化参数冻结策略
+
+BrainCo PI0.5 训练支持在 YAML 中通过 `freeze_strategy` 选择参数冻结方式：
+
+```yaml
+# 全参数训练，不额外冻结参数。
+freeze_strategy: none
+
+# LoRA 实验：只训练 LoRA、56D action interface 和 Pi0.5 time MLP。
+freeze_strategy: lora_and_action_interface
+
+# Action interface 实验：冻结 VLM，只训练 56D action interface 和 Pi0.5 time MLP。
+freeze_strategy: action_interface_only
+```
+
+使用 `lora_and_action_interface` 时，model 中至少一个 Gemma variant 必须是 LoRA variant；BrainCo 双 LoRA 实验使用：
+
+```yaml
+model:
+  __class__: openpi.models.pi0_config.Pi0Config
+  fields:
+    pi05: true
+    action_dim: 56
+    action_horizon: 16
+    max_token_len: 256
+    paligemma_variant: gemma_2b_lora
+    action_expert_variant: gemma_300m_lora
+freeze_strategy: lora_and_action_interface
+```
+
+`action_interface_only` 应配合非 LoRA model variant 使用。`freeze_strategy` 是普通字符串字段，会随完整
+`TrainConfig` 保存到 run 根目录和每个 step checkpoint 的 `train_config.yaml`；训练恢复时再根据它构造
+NNX `freeze_filter`，因此不会丢失参数冻结语义。
 
 ## checkpoint 保存规则
 

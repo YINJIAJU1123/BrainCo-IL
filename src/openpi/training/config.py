@@ -23,6 +23,7 @@ import openpi.policies.brainco_policy as brainco_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
+import openpi.shared.nnx_utils as nnx_utils
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
 import openpi.training.optimizer as _optimizer
@@ -32,6 +33,12 @@ import openpi.transforms as _transforms
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
 Filter: TypeAlias = nnx.filterlib.Filter
+FreezeStrategy: TypeAlias = Literal["none", "lora_and_action_interface", "action_interface_only"]
+
+_TRAINABLE_PARAMETER_REGEX_BY_FREEZE_STRATEGY: dict[FreezeStrategy, str] = {
+    "lora_and_action_interface": ".*(lora|action_in_proj|action_out_proj|time_mlp_in|time_mlp_out).*",
+    "action_interface_only": ".*(action_in_proj|action_out_proj|time_mlp_in|time_mlp_out).*",
+}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -606,6 +613,8 @@ class TrainConfig:
 
     # Specifies which weights should be frozen.
     freeze_filter: tyro.conf.Suppress[Filter] = dataclasses.field(default_factory=nnx.Nothing)
+    # Serializable BrainCo fine-tuning strategy. Unlike freeze_filter, this field round-trips through train_config.yaml.
+    freeze_strategy: FreezeStrategy = "none"
 
     # Determines the data to be trained on.
     data: DataConfigFactory = dataclasses.field(default_factory=FakeDataConfig)
@@ -664,11 +673,32 @@ class TrainConfig:
     @property
     def trainable_filter(self) -> nnx.filterlib.Filter:
         """Get the filter for the trainable parameters."""
-        return nnx.All(nnx.Param, nnx.Not(self.freeze_filter))
+        return nnx.All(nnx.Param, nnx.Not(self.effective_freeze_filter))
+
+    @property
+    def effective_freeze_filter(self) -> nnx.filterlib.Filter:
+        """Resolve a serializable freeze strategy into the NNX filter used by training."""
+        if self.freeze_strategy == "none":
+            return self.freeze_filter
+        trainable_regex = _TRAINABLE_PARAMETER_REGEX_BY_FREEZE_STRATEGY[self.freeze_strategy]
+        return nnx.Not(nnx_utils.PathRegex(trainable_regex))
 
     def __post_init__(self) -> None:
         if self.resume and self.overwrite:
             raise ValueError("Cannot resume and overwrite at the same time.")
+        if self.freeze_strategy != "none" and not isinstance(self.freeze_filter, nnx.Nothing):
+            raise ValueError("freeze_strategy and the legacy freeze_filter cannot both be set")
+        if self.freeze_strategy == "lora_and_action_interface":
+            if not isinstance(self.model, pi0_config.Pi0Config):
+                raise ValueError("lora_and_action_interface requires a Pi0Config model")
+            if "lora" not in self.model.paligemma_variant and "lora" not in self.model.action_expert_variant:
+                raise ValueError("lora_and_action_interface requires at least one LoRA model variant")
+        if (
+            self.freeze_strategy == "action_interface_only"
+            and isinstance(self.model, pi0_config.Pi0Config)
+            and ("lora" in self.model.paligemma_variant or "lora" in self.model.action_expert_variant)
+        ):
+            raise ValueError("action_interface_only requires non-LoRA model variants")
 
 
 # Use `get_config` if you need to get a config by name in your code.
