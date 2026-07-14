@@ -24,6 +24,7 @@ import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
+import openpi.shared.nnx_utils as nnx_utils
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
 import openpi.training.misc.polaris_config as polaris_config
 import openpi.training.misc.roboarena_config as roboarena_config
@@ -1557,6 +1558,113 @@ _CONFIGS = [
             peak_lr=1e-4,
             decay_steps=1_000,
             decay_lr=1e-5,
+        ),
+    ),
+    TrainConfig(
+        # Controlled experiment A: freeze the pretrained SigLIP/PaliGemma/action-expert
+        # base weights. Train only LoRA residuals and the new 56D action interface.
+        name="pi05_brainco_0713_merged_lora_action56",
+        project_name="imitation",
+        checkpoint_base_dir="/mnt/workspace/jiaju/pi05_0713_lora_experiments/checkpoints",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=56,
+            action_horizon=16,
+            max_token_len=256,
+            paligemma_variant="gemma_2b_lora",
+            action_expert_variant="gemma_300m_lora",
+        ),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco_0713_merged_action56",
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id="/mnt/workspace/dataset/revotron_mit_revo3_mit_3cam_pick_and_place_0713_merged",
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+            head_camera_key="observation.images.cam_head",
+            revo3_eef_joint_hand_to_joint_hand=True,
+        ),
+        weight_loader=weight_loaders.PartialCheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi05_base/params"
+        ),
+        # freeze_filter is the complement of an explicit trainable whitelist.
+        # This also freezes the SigLIP vision tower, which the generic LoRA
+        # freeze filter does not necessarily cover.
+        freeze_filter=nnx.Not(
+            nnx_utils.PathRegex(
+                ".*(lora|action_in_proj|action_out_proj|time_mlp_in|time_mlp_out).*"
+            )
+        ),
+        ema_decay=None,
+        num_train_steps=40_000,
+        batch_size=16,
+        num_workers=8,
+        log_interval=10,
+        save_interval=4_000,
+        keep_period=4_000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=40_000,
+            decay_lr=5e-6,
+        ),
+    ),
+    TrainConfig(
+        # Controlled experiment B: freeze the entire pretrained backbone and
+        # train only the new 56D action projections and Pi0.5 time MLP.
+        name="pi05_brainco_0713_merged_action_interface_only",
+        project_name="imitation",
+        checkpoint_base_dir="/mnt/workspace/jiaju/pi05_0713_lora_experiments/checkpoints",
+        model=pi0_config.Pi0Config(
+            pi05=True,
+            action_dim=56,
+            action_horizon=16,
+            max_token_len=256,
+        ),
+        data=LeRobotBrainCoDataConfig(
+            repo_id="brainco_0713_merged_action56",
+            base_config=DataConfig(
+                prompt_from_task=True,
+                lerobot_datasets=(
+                    LeRobotDataset(
+                        repo_id="/mnt/workspace/dataset/revotron_mit_revo3_mit_3cam_pick_and_place_0713_merged",
+                        weight=1.0,
+                    ),
+                ),
+                multi_dataset_mode="concat",
+            ),
+            extra_delta_transform=True,
+            arm_dof=7,
+            hand_dof=21,
+            head_camera_key="observation.images.cam_head",
+            revo3_eef_joint_hand_to_joint_hand=True,
+        ),
+        weight_loader=weight_loaders.PartialCheckpointWeightLoader(
+            "gs://openpi-assets/checkpoints/pi05_base/params"
+        ),
+        freeze_filter=nnx.Not(
+            nnx_utils.PathRegex(".*(action_in_proj|action_out_proj|time_mlp_in|time_mlp_out).*")
+        ),
+        ema_decay=None,
+        num_train_steps=40_000,
+        batch_size=16,
+        num_workers=8,
+        log_interval=10,
+        save_interval=4_000,
+        keep_period=4_000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=5e-5,
+            decay_steps=40_000,
+            decay_lr=5e-6,
         ),
     ),
     #
