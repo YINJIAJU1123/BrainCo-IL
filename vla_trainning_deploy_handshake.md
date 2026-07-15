@@ -110,8 +110,7 @@ uv run python scripts/train.py \
   src/openpi/training/training_config_template/pi05_brainco_revo3_0712_ght_56d.yaml
 ```
 
-前三个模板由 `main` 中原有的 Revo3 Python config 迁移而来；后两个模板来自阿里云
-`/mnt/data_nas/xiyue/BrainCo-IL/configs/experiments/` 中实际使用的训练配置。
+前三个模板由 `main` 中原有的 Revo3 Python config 迁移而来；后两个模板来自阿里云中训练LORA和VLM 冻结的两次训练中实际使用的训练配置。
 
 模板是训练输入，应保持易于修改。训练启动后，run 根目录和 step checkpoint 中自动生成的
 `train_config.yaml` 是完整展开的配置快照，用于复现和部署，不应反向堆回模板目录。
