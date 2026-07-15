@@ -44,6 +44,7 @@ import openpi.models.pi0_config
 import openpi.models_pytorch.pi0_pytorch
 import openpi.shared.normalize as _normalize
 import openpi.training.config as _config
+import openpi.training.config_io as _config_io
 import openpi.training.data_loader as _data
 
 
@@ -193,6 +194,7 @@ def save_checkpoint(model, optimizer, global_step, config, is_main, data_config)
         if final_ckpt_dir.exists():
             shutil.rmtree(final_ckpt_dir)
         tmp_ckpt_dir.rename(final_ckpt_dir)
+        _config_io.save_train_config(config, final_ckpt_dir)
 
         logging.info(f"Saved checkpoint at step {global_step} -> {final_ckpt_dir}")
 
@@ -344,6 +346,8 @@ def train_loop(config: _config.TrainConfig):
         # For new runs, create experiment-specific checkpoint directory
         exp_checkpoint_dir = config.checkpoint_dir
         exp_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+        if is_main:
+            _config_io.save_train_config(config, exp_checkpoint_dir)
         logging.info(f"Created experiment checkpoint directory: {exp_checkpoint_dir}")
     else:
         # For resume, checkpoint_dir is already set to the experiment directory

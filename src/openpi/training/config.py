@@ -4,8 +4,10 @@ import abc
 from collections.abc import Sequence
 import dataclasses
 import difflib
+import importlib
 import logging
 import pathlib
+import sys
 from typing import Any, Literal, Protocol, TypeAlias
 
 import etils.epath as epath
@@ -16,17 +18,15 @@ import tyro
 import openpi.models.act_config as act_config
 import openpi.models.model as _model
 import openpi.models.pi0_config as pi0_config
-import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.brainco_policy as brainco_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
+import openpi.shared.nnx_utils as nnx_utils
 import openpi.shared.normalize as _normalize
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
-import openpi.training.misc.polaris_config as polaris_config
-import openpi.training.misc.roboarena_config as roboarena_config
 import openpi.training.optimizer as _optimizer
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
@@ -34,6 +34,12 @@ import openpi.transforms as _transforms
 ModelType: TypeAlias = _model.ModelType
 # Work around a tyro issue with using nnx.filterlib.Filter directly.
 Filter: TypeAlias = nnx.filterlib.Filter
+FreezeStrategy: TypeAlias = Literal["none", "lora_and_action_interface", "action_interface_only"]
+
+_TRAINABLE_PARAMETER_REGEX_BY_FREEZE_STRATEGY: dict[FreezeStrategy, str] = {
+    "lora_and_action_interface": ".*(lora|action_in_proj|action_out_proj|time_mlp_in|time_mlp_out).*",
+    "action_interface_only": ".*(action_in_proj|action_out_proj|time_mlp_in|time_mlp_out).*",
+}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -608,6 +614,8 @@ class TrainConfig:
 
     # Specifies which weights should be frozen.
     freeze_filter: tyro.conf.Suppress[Filter] = dataclasses.field(default_factory=nnx.Nothing)
+    # Serializable BrainCo fine-tuning strategy. Unlike freeze_filter, this field round-trips through train_config.yaml.
+    freeze_strategy: FreezeStrategy = "none"
 
     # Determines the data to be trained on.
     data: DataConfigFactory = dataclasses.field(default_factory=FakeDataConfig)
@@ -668,474 +676,45 @@ class TrainConfig:
     @property
     def trainable_filter(self) -> nnx.filterlib.Filter:
         """Get the filter for the trainable parameters."""
-        return nnx.All(nnx.Param, nnx.Not(self.freeze_filter))
+        return nnx.All(nnx.Param, nnx.Not(self.effective_freeze_filter))
+
+    @property
+    def effective_freeze_filter(self) -> nnx.filterlib.Filter:
+        """Resolve a serializable freeze strategy into the NNX filter used by training."""
+        if self.freeze_strategy == "none":
+            return self.freeze_filter
+        trainable_regex = _TRAINABLE_PARAMETER_REGEX_BY_FREEZE_STRATEGY[self.freeze_strategy]
+        return nnx.Not(nnx_utils.PathRegex(trainable_regex))
 
     def __post_init__(self) -> None:
         if self.resume and self.overwrite:
             raise ValueError("Cannot resume and overwrite at the same time.")
+        if self.freeze_strategy != "none" and not isinstance(self.freeze_filter, nnx.Nothing):
+            raise ValueError("freeze_strategy and the legacy freeze_filter cannot both be set")
+        if self.freeze_strategy == "lora_and_action_interface":
+            if not isinstance(self.model, pi0_config.Pi0Config):
+                raise ValueError("lora_and_action_interface requires a Pi0Config model")
+            if "lora" not in self.model.paligemma_variant and "lora" not in self.model.action_expert_variant:
+                raise ValueError("lora_and_action_interface requires at least one LoRA model variant")
+        if (
+            self.freeze_strategy == "action_interface_only"
+            and isinstance(self.model, pi0_config.Pi0Config)
+            and ("lora" in self.model.paligemma_variant or "lora" in self.model.action_expert_variant)
+        ):
+            raise ValueError("action_interface_only requires non-LoRA model variants")
 
 
 # Use `get_config` if you need to get a config by name in your code.
 _CONFIGS = [
     #
-    # Inference Aloha configs.
+    # BrainCo dual-arm dual-dexterous-hand base recipes (56D).
+    # Experiment-specific values such as dataset path, action horizon, batch
+    # size, save interval, and learning rate should be passed through CLI/YAML
+    # overrides. The resolved TrainConfig is saved into every checkpoint as
+    # train_config.yaml and becomes the deploy source of truth.
     #
     TrainConfig(
-        name="pi0_aloha",
-        model=pi0_config.Pi0Config(),
-        data=LeRobotAlohaDataConfig(
-            assets=AssetsConfig(asset_id="trossen"),
-        ),
-        policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
-    ),
-    TrainConfig(
-        name="pi05_aloha",
-        model=pi0_config.Pi0Config(pi05=True),
-        data=LeRobotAlohaDataConfig(
-            assets=AssetsConfig(asset_id="trossen"),
-        ),
-        policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
-    ),
-    TrainConfig(
-        name="pi0_aloha_towel",
-        model=pi0_config.Pi0Config(),
-        data=LeRobotAlohaDataConfig(
-            assets=AssetsConfig(asset_id="trossen"),
-            default_prompt="fold the towel",
-        ),
-        policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
-    ),
-    TrainConfig(
-        name="pi0_aloha_tupperware",
-        model=pi0_config.Pi0Config(),
-        data=LeRobotAlohaDataConfig(
-            assets=AssetsConfig(asset_id="trossen"),
-            default_prompt="open the tupperware and put the food on the plate",
-        ),
-        policy_metadata={"reset_pose": [0, -1.5, 1.5, 0, 0, 0]},
-    ),
-    #
-    # Inference DROID configs.
-    #
-    TrainConfig(
-        name="pi0_droid",
-        model=pi0_config.Pi0Config(action_horizon=10),
-        data=SimpleDataConfig(
-            assets=AssetsConfig(asset_id="droid"),
-            data_transforms=lambda model: _transforms.Group(
-                inputs=[droid_policy.DroidInputs(model_type=ModelType.PI0)],
-                outputs=[droid_policy.DroidOutputs()],
-            ),
-            base_config=DataConfig(
-                prompt_from_task=True,
-            ),
-        ),
-    ),
-    TrainConfig(
-        name="pi0_fast_droid",
-        model=pi0_fast.Pi0FASTConfig(action_dim=8, action_horizon=10),
-        data=SimpleDataConfig(
-            assets=AssetsConfig(asset_id="droid"),
-            data_transforms=lambda model: _transforms.Group(
-                inputs=[droid_policy.DroidInputs(model_type=ModelType.PI0_FAST)],
-                outputs=[droid_policy.DroidOutputs()],
-            ),
-            base_config=DataConfig(
-                prompt_from_task=True,
-            ),
-        ),
-    ),
-    TrainConfig(
-        name="pi05_droid",
-        model=pi0_config.Pi0Config(action_horizon=15, pi05=True),
-        data=SimpleDataConfig(
-            assets=AssetsConfig(asset_id="droid"),
-            data_transforms=lambda model: _transforms.Group(
-                inputs=[droid_policy.DroidInputs(model_type=ModelType.PI05)],
-                outputs=[droid_policy.DroidOutputs()],
-            ),
-            base_config=DataConfig(
-                prompt_from_task=True,
-            ),
-        ),
-    ),
-    #
-    # Fine-tuning Libero configs.
-    #
-    # These train configs define the hyperparameters for fine-tuning the base model on your own dataset.
-    # They are used to define key elements like the dataset you are training on, the base checkpoint you
-    # are using, and other hyperparameters like how many training steps to run or what learning rate to use.
-    # For your own dataset, you can copy this class and modify the dataset name, and data transforms based on
-    # the comments below.
-    TrainConfig(
-        # Change the name to reflect your model and dataset.
-        name="pi0_libero",
-        # Here you define the model config -- In this example we use pi0 as the model
-        # architecture and perform *full* finetuning. in the examples below we show how to modify
-        # this to perform *low-memory* (LORA) finetuning and use pi0-FAST as an alternative architecture.
-        model=pi0_config.Pi0Config(),
-        # Here you define the dataset you are training on. In this example we use the Libero
-        # dataset. For your own dataset, you can change the repo_id to point to your dataset.
-        # Also modify the DataConfig to use the new config you made for your dataset above.
-        data=LeRobotLiberoDataConfig(
-            repo_id="physical-intelligence/libero",
-            base_config=DataConfig(
-                # This flag determines whether we load the prompt (i.e. the task instruction) from the
-                # ``task`` field in the LeRobot dataset. If set to True, the prompt will show up in
-                # a field called ``prompt`` in the input dict. The recommended setting is True.
-                prompt_from_task=True,
-            ),
-            extra_delta_transform=True,
-        ),
-        # Here you define which pre-trained checkpoint you want to load to initialize the model.
-        # This should match the model config you chose above -- i.e. in this case we use the pi0 base model.
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
-        # Below you can define other hyperparameters like the learning rate, number of training steps, etc.
-        # Check the base TrainConfig class for a full list of available hyperparameters.
-        num_train_steps=30_000,
-    ),
-    TrainConfig(
-        name="pi0_libero_low_mem_finetune",
-        # Here is an example of loading a pi0 model for LoRA fine-tuning.
-        model=pi0_config.Pi0Config(paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"),
-        data=LeRobotLiberoDataConfig(
-            repo_id="physical-intelligence/libero",
-            base_config=DataConfig(prompt_from_task=True),
-            extra_delta_transform=True,
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
-        num_train_steps=30_000,
-        # The freeze filter defines which parameters should be frozen during training.
-        # We have a convenience function in the model config that returns the default freeze filter
-        # for the given model config for LoRA finetuning. Just make sure it matches the model config
-        # you chose above.
-        freeze_filter=pi0_config.Pi0Config(
-            paligemma_variant="gemma_2b_lora", action_expert_variant="gemma_300m_lora"
-        ).get_freeze_filter(),
-        # Turn off EMA for LoRA finetuning.
-        ema_decay=None,
-    ),
-    TrainConfig(
-        name="pi0_fast_libero",
-        # Here is an example of loading a pi0-FAST model for full finetuning.
-        # Modify action_dim and action_horizon to match your dataset (action horizon is equal to
-        # the desired action chunk length).
-        # The max_token_len is the maximum number of (non-image) tokens the model can handle.
-        # This includes the tokenized prompt, proprioceptive state, and (FAST-tokenized) action tokens.
-        # Choosing this value too small may chop off tokens at the end of your sequence (the code will throw
-        # a warning), while choosing it too large will waste memory (since we pad each batch element to the
-        # max_token_len). A good rule of thumb is to use approx 180 for single-arm robots, and approx 250 for
-        # two-arm robots. Generally, err on the lower side here first, and potentially increase the value if
-        # you see many warnings being thrown during training.
-        model=pi0_fast.Pi0FASTConfig(action_dim=7, action_horizon=10, max_token_len=180),
-        data=LeRobotLiberoDataConfig(
-            repo_id="physical-intelligence/libero",
-            base_config=DataConfig(prompt_from_task=True),
-            extra_delta_transform=True,
-        ),
-        # Note that we load the pi0-FAST base model checkpoint here.
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_base/params"),
-        num_train_steps=30_000,
-    ),
-    TrainConfig(
-        name="pi0_fast_libero_low_mem_finetune",
-        # Here is an example of loading a pi0-FAST model for LoRA finetuning.
-        # For setting action_dim, action_horizon, and max_token_len, see the comments above.
-        model=pi0_fast.Pi0FASTConfig(
-            action_dim=7, action_horizon=10, max_token_len=180, paligemma_variant="gemma_2b_lora"
-        ),
-        data=LeRobotLiberoDataConfig(
-            repo_id="physical-intelligence/libero",
-            base_config=DataConfig(prompt_from_task=True),
-            extra_delta_transform=True,
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_base/params"),
-        num_train_steps=30_000,
-        # Again, make sure to match the model config above when extracting the freeze filter
-        # that specifies which parameters should be frozen during LoRA finetuning.
-        freeze_filter=pi0_fast.Pi0FASTConfig(
-            action_dim=7, action_horizon=10, max_token_len=180, paligemma_variant="gemma_2b_lora"
-        ).get_freeze_filter(),
-        # Turn off EMA for LoRA finetuning.
-        ema_decay=None,
-    ),
-    TrainConfig(
-        name="pi05_libero",
-        model=pi0_config.Pi0Config(pi05=True, action_horizon=10, discrete_state_input=False),
-        data=LeRobotLiberoDataConfig(
-            repo_id="physical-intelligence/libero",
-            base_config=DataConfig(prompt_from_task=True),
-            extra_delta_transform=False,
-        ),
-        batch_size=256,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=10_000,
-            peak_lr=5e-5,
-            decay_steps=1_000_000,
-            decay_lr=5e-5,
-        ),
-        optimizer=_optimizer.AdamW(clip_gradient_norm=1.0),
-        ema_decay=0.999,
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        pytorch_weight_path="/path/to/your/pytorch_weight_path",
-        num_train_steps=30_000,
-    ),
-    #
-    # Fine-tuning Aloha configs.
-    #
-    # This is a test config that is used to illustate how train on a custom LeRobot dataset.
-    # For instructions on how to convert and train on your own Aloha dataset see examples/aloha_real/README.md
-    TrainConfig(
-        name="pi0_aloha_pen_uncap",
-        model=pi0_config.Pi0Config(),
-        data=LeRobotAlohaDataConfig(
-            repo_id="physical-intelligence/aloha_pen_uncap_diverse",
-            assets=AssetsConfig(
-                assets_dir="gs://openpi-assets/checkpoints/pi0_base/assets",
-                asset_id="trossen",
-            ),
-            default_prompt="uncap the pen",
-            repack_transforms=_transforms.Group(
-                inputs=[
-                    _transforms.RepackTransform(
-                        {
-                            "images": {
-                                "cam_high": "observation.images.cam_high",
-                                "cam_left_wrist": "observation.images.cam_left_wrist",
-                                "cam_right_wrist": "observation.images.cam_right_wrist",
-                            },
-                            "state": "observation.state",
-                            "actions": "action",
-                        }
-                    )
-                ]
-            ),
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
-        num_train_steps=20_000,
-    ),
-    TrainConfig(
-        name="pi05_aloha_pen_uncap",
-        model=pi0_config.Pi0Config(pi05=True),
-        data=LeRobotAlohaDataConfig(
-            repo_id="physical-intelligence/aloha_pen_uncap_diverse",
-            assets=AssetsConfig(
-                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets",
-                asset_id="trossen",
-            ),
-            default_prompt="uncap the pen",
-            repack_transforms=_transforms.Group(
-                inputs=[
-                    _transforms.RepackTransform(
-                        {
-                            "images": {
-                                "cam_high": "observation.images.cam_high",
-                                "cam_left_wrist": "observation.images.cam_left_wrist",
-                                "cam_right_wrist": "observation.images.cam_right_wrist",
-                            },
-                            "state": "observation.state",
-                            "actions": "action",
-                        }
-                    )
-                ]
-            ),
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        num_train_steps=20_000,
-        batch_size=64,
-    ),
-    #
-    # Fine-tuning DROID configs.
-    #
-    TrainConfig(
-        # This config is for fine-tuning pi0-FAST-base on the *full* DROID dataset.
-        # We use RLDS data loading to make training on this large dataset tractable.
-        # For fine-tuning on your own DROID dataset, see below.
-        name="pi0_fast_full_droid_finetune",
-        model=pi0_fast.Pi0FASTConfig(
-            action_dim=8,
-            action_horizon=16,
-            max_token_len=180,
-        ),
-        data=RLDSDroidDataConfig(
-            repo_id="droid",
-            # Set this to the path to your DROID RLDS dataset (the parent directory of the `droid` directory).
-            rlds_data_dir="<path_to_droid_rlds_dataset>",
-            action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_fast_base/params"),
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=5e-5,
-            decay_steps=1_000_000,
-            decay_lr=5e-5,
-        ),
-        num_train_steps=100_000,  # 100k steps should be sufficient, takes ~2 days on 8x H100s
-        batch_size=256,
-        log_interval=100,
-        save_interval=5000,
-        keep_period=20_000,
-        num_workers=0,  # Important: RLDS DataLoader requires num_workers=0, handles multi-processing internally
-    ),
-    TrainConfig(
-        # This config is for fine-tuning pi05 on the *full* DROID dataset.
-        # We use RLDS data loading to make training on this large dataset tractable.
-        # For fine-tuning on your own DROID dataset, see below.
-        name="pi05_full_droid_finetune",
-        model=pi0_config.Pi0Config(
-            pi05=True,
-            action_dim=32,
-            action_horizon=16,
-        ),
-        data=RLDSDroidDataConfig(
-            repo_id="droid",
-            # Set this to the path to your DROID RLDS dataset (the parent directory of the `droid` directory).
-            rlds_data_dir="<path_to_droid_rlds_dataset>",
-            action_space=droid_rlds_dataset.DroidActionSpace.JOINT_POSITION,
-            assets=AssetsConfig(
-                assets_dir="gs://openpi-assets/checkpoints/pi05_base/assets/",
-                asset_id="droid",
-            ),
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=5e-5,
-            decay_steps=1_000_000,
-            decay_lr=5e-5,
-        ),
-        num_train_steps=100_000,
-        batch_size=256,
-        log_interval=100,
-        save_interval=5000,
-        keep_period=10_000,
-        num_workers=0,  # Important: RLDS DataLoader requires num_workers=0, handles multi-processing internally
-    ),
-    TrainConfig(
-        # This config is for fine-tuning pi05-DROID on a custom (smaller) DROID dataset.
-        # Here, we use LeRobot data format (like for all other fine-tuning examples)
-        # To convert your custom DROID dataset (<10s of hours) to LeRobot format, see examples/droid/convert_droid_data_to_lerobot.py
-        name="pi05_droid_finetune",
-        model=pi0_config.Pi0Config(
-            pi05=True,
-            action_dim=32,  # pi05 is trained with 32-dim actions
-            action_horizon=16,
-        ),
-        data=LeRobotDROIDDataConfig(
-            # Replace with your custom DROID LeRobot dataset repo id.
-            repo_id="your_hf_username/my_droid_dataset",
-            base_config=DataConfig(prompt_from_task=True),
-            assets=AssetsConfig(
-                # Important: reuse the original DROID norm stats during fine-tuning!
-                assets_dir="gs://openpi-assets/checkpoints/pi05_droid/assets",
-                asset_id="droid",
-            ),
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_droid/params"),
-        num_train_steps=20_000,
-        batch_size=32,
-    ),
-    #
-    # ALOHA Sim configs. This config is used to demonstrate how to train on a simple simulated environment.
-    #
-    TrainConfig(
-        name="pi0_aloha_sim",
-        model=pi0_config.Pi0Config(),
-        data=LeRobotAlohaDataConfig(
-            repo_id="lerobot/aloha_sim_transfer_cube_human",
-            default_prompt="Transfer cube",
-            use_delta_joint_actions=False,
-        ),
-        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi0_base/params"),
-        num_train_steps=20_000,
-    ),
-    #
-    # BrainCo dual-arm dual-dexterous-hand configs (56D).
-    #
-    TrainConfig(
-        # Multi-dataset training for BrainCo with 56D
-        name="pi05_brainco_multi_56d",
-        checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(pi05=True, action_dim=56, action_horizon=100, max_token_len=256),
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco",  # Not used when lerobot_datasets is set
-            base_config=DataConfig(
-                prompt_from_task=True,
-                # Define multiple datasets (weights are ignored in concat mode)
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id="<path_to_lerobot_dataset_1>",
-                        weight=1.0,  # Weight ignored in concat mode
-                    ),
-                    LeRobotDataset(
-                        repo_id="<path_to_lerobot_dataset_2>",
-                        weight=1.0,  # Weight ignored in concat mode
-                    ),
-                    LeRobotDataset(
-                        repo_id="<path_to_lerobot_dataset_3>",
-                        weight=1.0,  # Weight ignored in concat mode
-                    ),
-                ),
-                multi_dataset_mode="concat",  # Use ALL data from all datasets
-            ),
-            extra_delta_transform=True,
-        ),
-        weight_loader=weight_loaders.PartialCheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        num_train_steps=30_000,
-        batch_size=64,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=5e-5,
-            decay_steps=30_000,
-            decay_lr=5e-6,
-        ),
-    ),
-    TrainConfig(
-        # Revo3 pick-and-place bread dataset collected on 2026-06-29.
-        # The raw dataset is 70D: left/right EEF pose + arm joints + hand joints.
-        # We drop the EEF pose and reorder to the original 56D dataset layout.
-        name="pi05_brainco_revo3_pick_place_56d",
-        project_name="imitation",
-        checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(pi05=True, action_dim=56, action_horizon=50, max_token_len=256),
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_revo3_pick_place_56d",
-            base_config=DataConfig(
-                prompt_from_task=True,
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id=(
-                            "/mnt/data_nas/ruibin/dataset/"
-                            "revomate_revo3_full/zm.6.29.18.29/"
-                            "revotron_mit_revo3_mit_3cam_zm.6.29.18.29"
-                        ),
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-            arm_dof=7,
-            hand_dof=21,
-            head_camera_key="observation.images.cam_head",
-            revo3_eef_joint_hand_to_joint_hand=True,
-        ),
-        weight_loader=weight_loaders.PartialCheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        num_train_steps=5_000,
-        batch_size=32,
-        save_interval=1_000,
-        keep_period=1_000,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=200,
-            peak_lr=5e-5,
-            decay_steps=5_000,
-            decay_lr=5e-6,
-        ),
-    ),
-    TrainConfig(
-        # JAX full-parameter fine-tuning on the 2026-06-29 Revo3 pick-and-place dataset.
-        # action_horizon is the training action chunk size.
-        name="pi05_brainco_revo3_pick_place_56d_full_chunk16",
+        name="pi05_brainco_56d",
         project_name="imitation",
         checkpoint_base_dir="./checkpoints",
         model=pi0_config.Pi0Config(
@@ -1145,127 +724,12 @@ _CONFIGS = [
             max_token_len=256,
         ),
         data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_revo3_pick_place_56d_full_chunk16",
+            repo_id="brainco_56d",
             base_config=DataConfig(
                 prompt_from_task=True,
                 lerobot_datasets=(
                     LeRobotDataset(
-                        repo_id=(
-                            "/mnt/data_nas/ruibin/dataset/"
-                            "revomate_revo3_full/zm.6.29.18.29/"
-                            "revotron_mit_revo3_mit_3cam_zm.6.29.18.29"
-                        ),
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-            arm_dof=7,
-            hand_dof=21,
-            head_camera_key="observation.images.cam_head",
-            revo3_eef_joint_hand_to_joint_hand=True,
-        ),
-        weight_loader=weight_loaders.PartialCheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        ema_decay=None,
-        num_train_steps=40_000,
-        batch_size=8,
-        num_workers=0,
-        log_interval=10,
-        save_interval=4000,
-        keep_period=4000,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=5e-5,
-            decay_steps=40_000,
-            decay_lr=5e-6,
-        ),
-    ),
-    TrainConfig(
-        # JAX LoRA fine-tuning on the 2026-06-29 Revo3 pick-and-place dataset.
-        # action_horizon is the training action chunk size.
-        name="pi05_brainco_revo3_pick_place_56d_lora_chunk16",
-        project_name="imitation",
-        checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(
-            pi05=True,
-            action_dim=56,
-            action_horizon=16,
-            max_token_len=256,
-            paligemma_variant="gemma_2b_lora",
-            action_expert_variant="gemma_300m_lora",
-        ),
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_revo3_pick_place_56d_lora_chunk16",
-            base_config=DataConfig(
-                prompt_from_task=True,
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id=(
-                            "/mnt/data_nas/ruibin/dataset/"
-                            "revomate_revo3_full/zm.6.29.18.29/"
-                            "revotron_mit_revo3_mit_3cam_zm.6.29.18.29"
-                        ),
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-            arm_dof=7,
-            hand_dof=21,
-            head_camera_key="observation.images.cam_head",
-            revo3_eef_joint_hand_to_joint_hand=True,
-        ),
-        weight_loader=weight_loaders.PartialCheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        freeze_filter=pi0_config.Pi0Config(
-            pi05=True,
-            action_dim=56,
-            action_horizon=16,
-            max_token_len=256,
-            paligemma_variant="gemma_2b_lora",
-            action_expert_variant="gemma_300m_lora",
-        ).get_freeze_filter(),
-        ema_decay=None,
-        num_train_steps=40_000,
-        batch_size=8,
-        num_workers=0,
-        log_interval=10,
-        save_interval=4000,
-        keep_period=4000,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=5e-5,
-            decay_steps=40_000,
-            decay_lr=5e-6,
-        ),
-    ),
-    TrainConfig(
-        # JAX full-parameter fine-tuning on the 2026-07-08 Revo3 dataset.
-        # Raw data is 70D; transforms drop EEF pose and train on 56D joint/hand layout.
-        name="pi05_brainco_revo3_0708_full_chunk16",
-        project_name="imitation",
-        checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(
-            pi05=True,
-            action_dim=56,
-            action_horizon=16,
-            max_token_len=256,
-        ),
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_revo3_0708_full_chunk16",
-            assets=AssetsConfig(
-                assets_dir="./assets/pi05_brainco_revo3_pick_place_56d_0708",
-                asset_id="brainco_revo3_pick_place_56d_0708",
-            ),
-            base_config=DataConfig(
-                prompt_from_task=True,
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id=(
-                            "/mnt/data_nas/ruibin/dataset/7-8-21-18/"
-                            "revotron_mit_revo3_mit_3cam_7-8-21-18_drop_42_45_gop10"
-                        ),
+                        repo_id="<path_to_lerobot_dataset>",
                         weight=1.0,
                     ),
                 ),
@@ -1292,251 +756,19 @@ _CONFIGS = [
             decay_lr=5e-6,
         ),
     ),
-    TrainConfig(
-        # JAX LoRA fine-tuning on the 2026-07-08 Revo3 dataset.
-        # LoRA is enabled through the *_lora Pi0.5 variants plus the freeze filter.
-        name="pi05_brainco_revo3_0708_lora_chunk16",
-        project_name="imitation",
-        checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(
-            pi05=True,
-            action_dim=56,
-            action_horizon=16,
-            max_token_len=256,
-            paligemma_variant="gemma_2b_lora",
-            action_expert_variant="gemma_300m_lora",
-        ),
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_revo3_0708_lora_chunk16",
-            assets=AssetsConfig(
-                assets_dir="./assets/pi05_brainco_revo3_pick_place_56d_0708",
-                asset_id="brainco_revo3_pick_place_56d_0708",
-            ),
-            base_config=DataConfig(
-                prompt_from_task=True,
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id=(
-                            "/mnt/data_nas/ruibin/dataset/7-8-21-18/"
-                            "revotron_mit_revo3_mit_3cam_7-8-21-18_drop_42_45_gop10"
-                        ),
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-            arm_dof=7,
-            hand_dof=21,
-            head_camera_key="observation.images.cam_head",
-            revo3_eef_joint_hand_to_joint_hand=True,
-        ),
-        weight_loader=weight_loaders.PartialCheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        freeze_filter=pi0_config.Pi0Config(
-            pi05=True,
-            action_dim=56,
-            action_horizon=16,
-            max_token_len=256,
-            paligemma_variant="gemma_2b_lora",
-            action_expert_variant="gemma_300m_lora",
-        ).get_freeze_filter(),
-        ema_decay=None,
-        num_train_steps=40_000,
-        batch_size=16,
-        num_workers=8,
-        log_interval=10,
-        save_interval=4000,
-        keep_period=4000,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=5e-5,
-            decay_steps=40_000,
-            decay_lr=5e-6,
-        ),
-    ),
-    TrainConfig(
-        # ACT baseline on the same 2026-07-08 Revo3 data and action chunk as the pi05 configs above.
-        name="act_brainco_revo3_0708_chunk16",
-        project_name="imitation",
-        checkpoint_base_dir="./checkpoints",
-        model=act_config.ACTConfig(action_dim=56, action_horizon=16),
-        ema_decay=None,
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_revo3_0708_act_chunk16",
-            assets=AssetsConfig(
-                assets_dir="./assets/pi05_brainco_revo3_pick_place_56d_0708",
-                asset_id="brainco_revo3_pick_place_56d_0708",
-            ),
-            base_config=DataConfig(
-                prompt_from_task=True,
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id=(
-                            "/mnt/data_nas/ruibin/dataset/7-8-21-18/"
-                            "revotron_mit_revo3_mit_3cam_7-8-21-18_drop_42_45_gop10"
-                        ),
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-            arm_dof=7,
-            hand_dof=21,
-            head_camera_key="observation.images.cam_head",
-            revo3_eef_joint_hand_to_joint_hand=True,
-        ),
-        num_train_steps=40_000,
-        batch_size=16,
-        num_workers=8,
-        log_interval=10,
-        save_interval=4_000,
-        keep_period=4_000,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=1e-4,
-            decay_steps=40_000,
-            decay_lr=1e-5,
-        ),
-    ),
-    TrainConfig(
-        # ACT baseline on the same 2026-07-12 GHT data and 56D transform as the pi0.5 config below.
-        name="act_brainco_revo3_0712_ght_56d",
-        project_name="imitation",
-        checkpoint_base_dir="./checkpoints",
-        model=act_config.ACTConfig(action_dim=56, action_horizon=16),
-        ema_decay=None,
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_revo3_0712_ght_56d",
-            assets=AssetsConfig(
-                assets_dir="./assets/pi05_brainco_revo3_0712_ght_56d",
-                asset_id="brainco_revo3_0712_ght_56d",
-            ),
-            base_config=DataConfig(
-                prompt_from_task=True,
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id="/mnt/data_nas/dataset/revotron_mit_revo3_mit_3cam_ght_7_12_18_20",
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-            arm_dof=7,
-            hand_dof=21,
-            head_camera_key="observation.images.cam_head",
-            revo3_eef_joint_hand_to_joint_hand=True,
-        ),
-        num_train_steps=40_000,
-        batch_size=16,
-        num_workers=8,
-        log_interval=10,
-        save_interval=4_000,
-        keep_period=4_000,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=1e-4,
-            decay_steps=40_000,
-            decay_lr=1e-5,
-        ),
-    ),
-    TrainConfig(
-        # Pi0.5 full fine-tuning on the 2026-07-12 GHT collection. The raw state/action
-        # vectors are 70D; the Revo3 transform drops both 7D EEF poses and trains on 56D.
-        name="pi05_brainco_revo3_0712_ght_56d",
-        project_name="imitation",
-        checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(
-            pi05=True,
-            action_dim=56,
-            action_horizon=16,
-            max_token_len=256,
-        ),
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_revo3_0712_ght_56d",
-            base_config=DataConfig(
-                prompt_from_task=True,
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id="/mnt/data_nas/dataset/revotron_mit_revo3_mit_3cam_ght_7_12_18_20",
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-            arm_dof=7,
-            hand_dof=21,
-            head_camera_key="observation.images.cam_head",
-            revo3_eef_joint_hand_to_joint_hand=True,
-        ),
-        weight_loader=weight_loaders.PartialCheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        ema_decay=None,
-        num_train_steps=40_000,
-        batch_size=16,
-        num_workers=8,
-        log_interval=10,
-        save_interval=4_000,
-        keep_period=4_000,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=5e-5,
-            decay_steps=40_000,
-            decay_lr=5e-6,
-        ),
-    ),
-    #
-    # ACT for BrainCo (56D), trained from scratch -- parallel algorithm to pi0.5 above.
-    # Reuses the exact same BrainCo data config; only the model differs.
-    #
     TrainConfig(
         name="act_brainco_56d",
+        project_name="imitation",
         checkpoint_base_dir="./checkpoints",
         model=act_config.ACTConfig(action_dim=56, action_horizon=100),
         ema_decay=None,
         data=LeRobotBrainCoDataConfig(
-            repo_id="brainco",  # Not used when lerobot_datasets is set
-            base_config=DataConfig(
-                prompt_from_task=True,  # carried but ignored by ACT (no language input)
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id="<path_to_lerobot_dataset_1>",
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-        ),
-        # ACT trains from scratch -- no pretrained checkpoint (default NoOpWeightLoader).
-        num_train_steps=100_000,
-        batch_size=64,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=1e-4,
-            decay_steps=100_000,
-            decay_lr=1e-5,
-        ),
-    ),
-    TrainConfig(
-        # ACT config on the same Revo3 pick-and-place dataset as pi05_brainco_revo3_pick_place_56d.
-        # ACT trains from scratch and ignores language prompts, but it still reuses the same BrainCo data transforms.
-        name="act_brainco_revo3_pick_place_56d",
-        checkpoint_base_dir="./checkpoints",
-        model=act_config.ACTConfig(action_dim=56, action_horizon=100),
-        ema_decay=None,
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_revo3_pick_place_56d",
+            repo_id="brainco_56d",
             base_config=DataConfig(
                 prompt_from_task=True,
                 lerobot_datasets=(
                     LeRobotDataset(
-                        repo_id=(
-                            "/mnt/data_nas/ruibin/dataset/"
-                            "revomate_revo3_full/zm.6.29.18.29/"
-                            "revotron_mit_revo3_mit_3cam_zm.6.29.18.29"
-                        ),
+                        repo_id="<path_to_lerobot_dataset>",
                         weight=1.0,
                     ),
                 ),
@@ -1548,14 +780,17 @@ _CONFIGS = [
             head_camera_key="observation.images.cam_head",
             revo3_eef_joint_hand_to_joint_hand=True,
         ),
-        num_train_steps=1_000,
-        batch_size=8,
-        save_interval=500,
-        keep_period=500,
+        # ACT trains from scratch -- no pretrained checkpoint.
+        num_train_steps=40_000,
+        batch_size=16,
+        num_workers=8,
+        log_interval=10,
+        save_interval=4000,
+        keep_period=4000,
         lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=100,
+            warmup_steps=1_000,
             peak_lr=1e-4,
-            decay_steps=1_000,
+            decay_steps=40_000,
             decay_lr=1e-5,
         ),
     ),
@@ -1615,9 +850,6 @@ _CONFIGS = [
         exp_name="debug_act",
         wandb_enabled=False,
     ),
-    # RoboArena & PolaRiS configs.
-    *roboarena_config.get_roboarena_configs(),
-    *polaris_config.get_polaris_configs(),
 ]
 
 if len({config.name for config in _CONFIGS}) != len(_CONFIGS):
@@ -1626,6 +858,9 @@ _CONFIGS_DICT = {config.name: config for config in _CONFIGS}
 
 
 def cli() -> TrainConfig:
+    if len(sys.argv) == 2 and pathlib.Path(sys.argv[1]).suffix in (".yaml", ".yml"):
+        config_io = importlib.import_module("openpi.training.config_io")
+        return config_io.load_train_config(sys.argv[1])
     return tyro.extras.overridable_config_cli({k: (k, v) for k, v in _CONFIGS_DICT.items()})
 
 
