@@ -268,7 +268,8 @@ uv run ruff check \
 
 - [x] 从最新 `origin/main` 创建规范本地 `main`，并解决 `src/openpi/training/config.py` 的文本冲突。
 - [x] 在 `scripts/train.py` 中同时保留 `save_final_checkpoint` 和 step `train_config.yaml` 保存顺序。
-- [x] 将 `act_brainco_revo3_0708_chunk16`、`act_brainco_revo3_0712_ght_56d`、`pi05_brainco_revo3_0712_ght_56d` 转换为 `examples/brainco/config/train/` 下的完整 YAML。
+- [x] 将 `act_brainco_revo3_0708_chunk16`、`act_brainco_revo3_0712_ght_56d`、`pi05_brainco_revo3_0712_ght_56d` 转换为 `src/openpi/training/training_config_template/` 下的完整 YAML。
+- [x] 从阿里云训练仓库同步 `pi05_0713_merged_action_interface_only.yaml` 和 `pi05_0713_merged_lora_action56.yaml` 两个实际实验模板。
 - [x] 按新架构删除其余实验专用 config 和 RoboArena / PolaRiS 动态注册，只保留 2 个 BrainCo recipe + 4 个 debug recipe。
 - [x] 修复 Ruff `PLC0415` 并重新执行静态检查。
 - [x] `revo_deploy` 已由使用方确认完全适配无 `policy_id` plugin 接口与 raw HWC image contract。

@@ -85,6 +85,37 @@ python scripts/train.py /path/to/train_config.yaml
 
 这适合云端训练和实验复现，因为 YAML 里可以完整记录最终 `TrainConfig`，不会依赖某个 Python config 名字。
 
+### 仓库内训练配置模板
+
+可直接使用和修改的训练 YAML 统一放在：
+
+```text
+src/openpi/training/training_config_template/
+```
+
+当前模板包括：
+
+| 文件 | 用途 |
+| --- | --- |
+| `act_brainco_revo3_0708_chunk16.yaml` | Revo3 0708 数据，ACT，56D，action horizon 16 |
+| `act_brainco_revo3_0712_ght_56d.yaml` | Revo3 0712 GHT 数据，ACT，56D，action horizon 16 |
+| `pi05_brainco_revo3_0712_ght_56d.yaml` | Revo3 0712 GHT 数据，PI0.5 全参数训练，56D，action horizon 16 |
+| `pi05_0713_merged_action_interface_only.yaml` | Revo3 0713 merged 数据，只训练 action interface 和 time MLP |
+| `pi05_0713_merged_lora_action56.yaml` | Revo3 0713 merged 数据，训练 LoRA、action interface 和 time MLP |
+
+例如：
+
+```bash
+uv run python scripts/train.py \
+  src/openpi/training/training_config_template/pi05_brainco_revo3_0712_ght_56d.yaml
+```
+
+前三个模板由 `main` 中原有的 Revo3 Python config 迁移而来；后两个模板来自阿里云
+`/mnt/data_nas/xiyue/BrainCo-IL/configs/experiments/` 中实际使用的训练配置。
+
+模板是训练输入，应保持易于修改。训练启动后，run 根目录和 step checkpoint 中自动生成的
+`train_config.yaml` 是完整展开的配置快照，用于复现和部署，不应反向堆回模板目录。
+
 ### `train_config.yaml` 训练模板
 
 下面是 PI0.5 BrainCo 56D 的训练模板。使用时通常只需要改：

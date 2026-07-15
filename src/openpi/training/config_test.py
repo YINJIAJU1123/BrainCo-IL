@@ -1,8 +1,12 @@
+from pathlib import Path
+
 import pytest
 
 from openpi.models import pi0_config
 from openpi.training import config as _config
 from openpi.training import config_io
+
+_TEMPLATE_DIR = Path(__file__).parent / "training_config_template"
 
 
 @pytest.mark.parametrize(
@@ -49,3 +53,12 @@ def test_save_final_checkpoint_yaml_round_trip(tmp_path):
     restored = config_io.load_train_config(path)
 
     assert restored.save_final_checkpoint is False
+
+
+@pytest.mark.parametrize("template_path", sorted(_TEMPLATE_DIR.glob("*.yaml")), ids=lambda path: path.stem)
+def test_training_config_template_loads(template_path):
+    restored = config_io.load_train_config(template_path)
+
+    assert restored.model.action_dim == 56
+    assert restored.data.base_config is not None
+    assert restored.data.base_config.lerobot_datasets
