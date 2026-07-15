@@ -410,6 +410,11 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
     """
 
     extra_delta_transform: bool = False
+    # Optional explicit mask specification for the dimensions that should be converted
+    # from absolute action targets into deltas. Positive entries are delta dimensions;
+    # negative entries stay absolute. If unset, the legacy BrainCo 56D dual-arm mask
+    # is used when extra_delta_transform is enabled.
+    delta_action_mask_dims: Sequence[int] | None = None
     arm_dof: int = 7
     hand_dof: int = 21
     head_camera_key: str = "observation.images.stereo_right"
@@ -450,17 +455,21 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
             outputs=[brainco_policy.BrainCoOutputs(action_dim=model_config.action_dim)],
         )
 
-        # Apply delta action transform if needed (for absolute action data)
-        # For BrainCo: apply delta to arm joints, keep hand joints as-is
+        # Apply delta action transform if needed (for absolute action data).
+        # For BrainCo 56D legacy configs: apply delta to both 7D arm joints,
+        # keep both 21D hands absolute. For reduced-dim configs, callers can
+        # provide delta_action_mask_dims, e.g. [7, -21] for right-arm + right-hand 28D.
         if self.extra_delta_transform:
-            # Full 56D: Left arm (7) + Right arm (7) + Left hand (21) + Right hand (21)
-            # Apply delta to arms, keep hands absolute
-            delta_action_mask = _transforms.make_bool_mask(
-                self.arm_dof,
-                self.arm_dof,
-                -self.hand_dof,
-                -self.hand_dof,
-            )
+            if self.delta_action_mask_dims is None:
+                # Full 56D: left arm + right arm + left hand + right hand.
+                delta_action_mask = _transforms.make_bool_mask(
+                    self.arm_dof,
+                    self.arm_dof,
+                    -self.hand_dof,
+                    -self.hand_dof,
+                )
+            else:
+                delta_action_mask = _transforms.make_bool_mask(*self.delta_action_mask_dims)
 
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
