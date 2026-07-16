@@ -1,12 +1,4 @@
-"""Policy transforms for BrainCo robot (dual-arm dual-dexterous-hand).
-
-Dataset structure:
-- observation.state: 56 dims (7 left arm + 7 right arm + 21 left hand + 21 right hand)
-- action: 56 dims
-- observation.images.cam_left_wrist: (480, 640, 3)
-- observation.images.cam_right_wrist: (480, 640, 3)
-- observation.images.stereo_right or cam_head: head / external camera
-"""
+"""Policy transforms and IO metadata for BrainCo robots."""
 
 import dataclasses
 
@@ -18,6 +10,84 @@ from openpi.models import model as _model
 
 # BrainCo robot action dimension: dual-arm dual-dexterous-hand
 BRAINCO_ACTION_DIM = 56
+JOINT_GROUP_DIMS = {
+    "left_arm": 7,
+    "right_arm": 7,
+    "left_hand": 21,
+    "right_hand": 21,
+}
+
+
+@dataclasses.dataclass(frozen=True)
+class BrainCoPolicyIOConfig:
+    """Serializable semantic contract shared by training and deployment."""
+
+    state_groups: tuple[str, ...] = ("left_arm", "right_arm", "left_hand", "right_hand")
+    action_groups: tuple[str, ...] = ("left_arm", "right_arm", "left_hand", "right_hand")
+    delta_action_groups: tuple[str, ...] = ("left_arm", "right_arm")
+    dataset_state_dim: int = 70
+    dataset_state_indices: tuple[int, ...] | None = tuple(range(14, 70))
+
+    @property
+    def state_dim(self) -> int:
+        return sum(self.group_dim(group) for group in self.state_groups)
+
+    @property
+    def action_dim(self) -> int:
+        return sum(self.group_dim(group) for group in self.action_groups)
+
+    def group_dim(self, group: str) -> int:
+        try:
+            return JOINT_GROUP_DIMS[group]
+        except KeyError as exc:
+            raise ValueError(
+                f"unsupported BrainCo joint group {group!r}; expected one of {tuple(JOINT_GROUP_DIMS)}"
+            ) from exc
+
+    def delta_mask_dims(self) -> tuple[int, ...]:
+        delta_groups = set(self.delta_action_groups)
+        return tuple(
+            self.group_dim(group) if group in delta_groups else -self.group_dim(group) for group in self.action_groups
+        )
+
+    def validate(self, model_action_dim: int) -> None:
+        _validate_unique_groups("state_groups", self.state_groups)
+        _validate_unique_groups("action_groups", self.action_groups)
+        _validate_unique_groups("delta_action_groups", self.delta_action_groups)
+        unknown_delta_groups = set(self.delta_action_groups) - set(self.action_groups)
+        if unknown_delta_groups:
+            raise ValueError(
+                f"delta_action_groups must be a subset of action_groups, got {sorted(unknown_delta_groups)}"
+            )
+        if self.action_dim != model_action_dim:
+            raise ValueError(
+                f"policy IO action groups describe {self.action_dim} dims, model expects {model_action_dim}"
+            )
+        if self.dataset_state_dim <= 0:
+            raise ValueError(f"dataset_state_dim must be > 0, got {self.dataset_state_dim}")
+        if self.dataset_state_indices is not None:
+            if len(self.dataset_state_indices) != self.state_dim:
+                raise ValueError(
+                    "dataset_state_indices length must match policy state_dim: "
+                    f"{len(self.dataset_state_indices)} vs {self.state_dim}"
+                )
+            if len(set(self.dataset_state_indices)) != len(self.dataset_state_indices):
+                raise ValueError("dataset_state_indices contains duplicate indices")
+            if (
+                min(self.dataset_state_indices, default=0) < 0
+                or max(self.dataset_state_indices, default=-1) >= self.dataset_state_dim
+            ):
+                raise ValueError(f"dataset_state_indices must be within [0, {self.dataset_state_dim})")
+
+
+def _validate_unique_groups(name: str, groups: tuple[str, ...]) -> None:
+    if not groups:
+        raise ValueError(f"{name} must not be empty")
+    if len(set(groups)) != len(groups):
+        raise ValueError(f"{name} contains duplicate groups: {groups}")
+    for group in groups:
+        if group not in JOINT_GROUP_DIMS:
+            raise ValueError(f"{name} contains unsupported group {group!r}; expected one of {tuple(JOINT_GROUP_DIMS)}")
 
 
 def make_brainco_example() -> dict:

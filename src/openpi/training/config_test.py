@@ -59,6 +59,20 @@ def test_save_final_checkpoint_yaml_round_trip(tmp_path):
 def test_training_config_template_loads(template_path):
     restored = config_io.load_train_config(template_path)
 
-    assert restored.model.action_dim == 56
+    assert restored.model.action_dim > 0
     assert restored.data.base_config is not None
     assert restored.data.base_config.lerobot_datasets
+    if isinstance(restored.data, _config.LeRobotBrainCoDataConfig):
+        restored.data.policy_io.validate(restored.model.action_dim)
+
+
+def test_brainco_policy_io_yaml_round_trip(tmp_path):
+    original = config_io.load_train_config(_TEMPLATE_DIR / "0716_pi05_28D_slow_right28_full.yaml")
+
+    path = config_io.save_train_config(original, tmp_path)
+    restored = config_io.load_train_config(path)
+
+    assert restored.data.policy_io.state_groups == ("right_arm", "right_hand")
+    assert restored.data.policy_io.action_groups == ("right_arm", "right_hand")
+    assert restored.data.policy_io.delta_action_groups == ("right_arm",)
+    assert restored.data.policy_io.delta_mask_dims() == (7, -21)

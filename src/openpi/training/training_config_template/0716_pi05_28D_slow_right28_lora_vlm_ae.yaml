@@ -61,9 +61,14 @@ train_config:
                   asset_id: null
             multi_dataset_mode: concat
         extra_delta_transform: true
-        delta_action_mask_dims:
-          - 7
-          - -21
+        policy_io:
+          __class__: openpi.policies.brainco_policy.BrainCoPolicyIOConfig
+          fields:
+            state_groups: [right_arm, right_hand]
+            action_groups: [right_arm, right_hand]
+            delta_action_groups: [right_arm]
+            dataset_state_dim: 28
+            dataset_state_indices: null
         arm_dof: 7
         hand_dof: 21
         head_camera_key: observation.images.cam_head

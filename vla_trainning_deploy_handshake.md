@@ -357,6 +357,36 @@ checkpoint_dir/train_config.yaml
 - dataset inference 需要的 metadata
 - runtime 默认参数，例如 `policy_rate`
 
+其中 state/action 的机器人语义由 `TrainConfig.data.policy_io` 显式保存，plugin
+不会根据 `action_dim` 猜测模型控制哪一侧。以右臂加右手的 28D policy 为例：
+
+```yaml
+policy_io:
+  __class__: openpi.policies.brainco_policy.BrainCoPolicyIOConfig
+  fields:
+    state_groups: [right_arm, right_hand]
+    action_groups: [right_arm, right_hand]
+    delta_action_groups: [right_arm]
+    dataset_state_dim: 28
+    dataset_state_indices: null
+```
+
+- `state_groups` 决定 deploy 如何拼接实时 joint state。
+- `action_groups` 决定 action 各段属于哪个控制器。
+- `delta_action_groups` 决定训练数据 transform 对哪些 group 做 delta；plugin
+  输出端会还原为 absolute joint target。
+- `dataset_state_dim` 和 `dataset_state_indices` 描述训练数据中的 state 布局。
+
+当 dataset inference 使用另一种原始布局时，可以在 checkpoint 的 deploy
+`config.yaml` 中覆盖数据映射。例如从 Revo3 70D state 中读取右臂和右手：
+
+```yaml
+dataset:
+  state_dim: 70
+  state_indices: [21, 22, 23, 24, 25, 26, 27, 49, 50, 51, 52, 53, 54, 55,
+                  56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69]
+```
+
 ### create_policy
 
 `create_policy()` 也读取同一份 `train_config.yaml`，然后调用：

@@ -13,6 +13,7 @@ import numpy as np
 
 from openpi import transforms
 from openpi.models import model as model_lib
+from openpi.policies import brainco_policy
 from openpi.policies import policy_config
 from openpi.training import config_io
 
@@ -63,12 +64,14 @@ def describe_policy(
     del runtime_options
     train_config = config_io.load_train_config(checkpoint_dir)
     data_config = train_config.data.create(train_config.assets_dirs, train_config.model)
+    policy_io = _policy_io(train_config)
     spec = _base_spec(
         config_name=train_config.name,
         policy_type=_policy_type(train_config),
         action_dim=int(train_config.model.action_dim),
         action_horizon=int(train_config.model.action_horizon),
         asset_id=data_config.asset_id,
+        policy_io=policy_io,
     )
     return _deep_update(spec, overrides or {})
 
@@ -99,9 +102,27 @@ def _base_spec(
     action_dim: int,
     action_horizon: int,
     asset_id: str | None,
+    policy_io: brainco_policy.BrainCoPolicyIOConfig,
 ) -> dict[str, Any]:
-    if action_dim != 56:
-        raise RuntimeError(f"BrainCo deploy plugin expects 56D actions, got {action_dim}")
+    policy_io.validate(action_dim)
+    action_groups: dict[str, dict[str, Any]] = {}
+    offset = 0
+    for group in policy_io.action_groups:
+        group_dim = policy_io.group_dim(group)
+        action_groups[group] = {
+            "indices": list(range(offset, offset + group_dim)),
+            "action_mode": "absolute",
+        }
+        offset += group_dim
+    dataset = {
+        "state_key": "observation.state",
+        "state_dim": policy_io.dataset_state_dim,
+        "task_key": "task",
+        "task_index_key": "task_index",
+        "tasks_path": "meta/tasks.parquet",
+    }
+    if policy_io.dataset_state_indices is not None:
+        dataset["state_indices"] = list(policy_io.dataset_state_indices)
     return {
         "schema_version": API_VERSION,
         "config_name": config_name,
@@ -116,6 +137,7 @@ def _base_spec(
         },
         "inputs": {
             "state_key": "observation.state",
+            "state_dim": policy_io.state_dim,
             "policy_input_map": {
                 "observation/state": "observation.state",
                 "observation/image": "observation.images.cam_head",
@@ -123,10 +145,8 @@ def _base_spec(
                 "observation/right_wrist_image": "observation.images.cam_right_wrist",
             },
             "state_composition": [
-                {"kind": "joint_pos", "group": "left_arm", "dim": 7},
-                {"kind": "joint_pos", "group": "right_arm", "dim": 7},
-                {"kind": "joint_pos", "group": "left_hand", "dim": 21},
-                {"kind": "joint_pos", "group": "right_hand", "dim": 21},
+                {"kind": "joint_pos", "group": group, "dim": policy_io.group_dim(group)}
+                for group in policy_io.state_groups
             ],
             "image_contract": dict(RAW_IMAGE_CONTRACT),
             "camera_bindings": dict(DEFAULT_CAMERA_BINDINGS),
@@ -134,21 +154,9 @@ def _base_spec(
         "outputs": {
             "action_key": "action",
             "space": "joint_position",
-            "joint_groups": {
-                "left_arm": {"indices": list(range(7)), "action_mode": "absolute"},
-                "right_arm": {"indices": list(range(7, 14)), "action_mode": "absolute"},
-                "left_hand": {"indices": list(range(14, 35)), "action_mode": "absolute"},
-                "right_hand": {"indices": list(range(35, 56)), "action_mode": "absolute"},
-            },
+            "joint_groups": action_groups,
         },
-        "dataset": {
-            "state_key": "observation.state",
-            "state_dim": 70,
-            "state_slice": [14, 70],
-            "task_key": "task",
-            "task_index_key": "task_index",
-            "tasks_path": "meta/tasks.parquet",
-        },
+        "dataset": dataset,
         "runtime_options": {
             "policy_rate": 30.0,
             **({"num_inference_steps": 10} if policy_type in ("pi0", "pi05") else {}),
@@ -171,6 +179,13 @@ def _policy_type(train_config) -> str:
     if isinstance(model_type, model_lib.ModelType):
         return model_type.value
     return str(model_type)
+
+
+def _policy_io(train_config) -> brainco_policy.BrainCoPolicyIOConfig:
+    policy_io = getattr(train_config.data, "policy_io", None)
+    if not isinstance(policy_io, brainco_policy.BrainCoPolicyIOConfig):
+        raise RuntimeError("BrainCo checkpoint train_config.data must provide a BrainCoPolicyIOConfig")
+    return policy_io
 
 
 def _sample_kwargs(train_config, opts: dict[str, Any]) -> dict[str, Any]:

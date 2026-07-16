@@ -395,26 +395,28 @@ class LeRobotLiberoDataConfig(DataConfigFactory):
 @dataclasses.dataclass(frozen=True)
 class LeRobotBrainCoDataConfig(DataConfigFactory):
     """
-    Config for BrainCo robot (dual-arm dual-dexterous-hand) dataset.
+    Config for BrainCo robot datasets.
 
-    Dataset features:
-    - observation.state: 56 dims (7 left arm + 7 right arm + 21 left hand + 21 right hand)
-    - action: 56 dims (full dimension)
+    The semantic state/action layout is described by ``policy_io``. This supports
+    both the full 56D dual-arm setup and reduced layouts such as the 28D
+    right-arm + right-hand policy.
+
+    Common dataset features:
+    - observation.state: joint state vector described by ``policy_io``
+    - action: action vector described by ``policy_io``
     - observation.images.cam_left_wrist: (480, 640, 3)
     - observation.images.cam_right_wrist: (480, 640, 3)
     - observation.images.stereo_right or observation.images.cam_head
 
-    This config uses the full 56 dimensions, requiring a model with action_dim=56.
-    Action projection layers (action_in_proj, action_out_proj) will need to be
-    initialized from scratch when loading pretrained weights.
+    The action groups must exactly cover ``model.action_dim``. Projection layers
+    may need to be initialized from scratch when that dimension differs from the
+    pretrained checkpoint.
     """
 
     extra_delta_transform: bool = False
-    # Optional explicit mask specification for the dimensions that should be converted
-    # from absolute action targets into deltas. Positive entries are delta dimensions;
-    # negative entries stay absolute. If unset, the legacy BrainCo 56D dual-arm mask
-    # is used when extra_delta_transform is enabled.
-    delta_action_mask_dims: Sequence[int] | None = None
+    policy_io: brainco_policy.BrainCoPolicyIOConfig = dataclasses.field(
+        default_factory=brainco_policy.BrainCoPolicyIOConfig
+    )
     arm_dof: int = 7
     hand_dof: int = 21
     head_camera_key: str = "observation.images.stereo_right"
@@ -424,6 +426,7 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        self.policy_io.validate(model_config.action_dim)
         # Map dataset keys to the keys expected by transforms
         repack_transform = _transforms.Group(
             inputs=[
@@ -455,21 +458,10 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
             outputs=[brainco_policy.BrainCoOutputs(action_dim=model_config.action_dim)],
         )
 
-        # Apply delta action transform if needed (for absolute action data).
-        # For BrainCo 56D legacy configs: apply delta to both 7D arm joints,
-        # keep both 21D hands absolute. For reduced-dim configs, callers can
-        # provide delta_action_mask_dims, e.g. [7, -21] for right-arm + right-hand 28D.
+        # Apply training-time delta conversion by semantic group name. The output
+        # transform always converts model deltas back to absolute joint targets.
         if self.extra_delta_transform:
-            if self.delta_action_mask_dims is None:
-                # Full 56D: left arm + right arm + left hand + right hand.
-                delta_action_mask = _transforms.make_bool_mask(
-                    self.arm_dof,
-                    self.arm_dof,
-                    -self.hand_dof,
-                    -self.hand_dof,
-                )
-            else:
-                delta_action_mask = _transforms.make_bool_mask(*self.delta_action_mask_dims)
+            delta_action_mask = _transforms.make_bool_mask(*self.policy_io.delta_mask_dims())
 
             data_transforms = data_transforms.push(
                 inputs=[_transforms.DeltaActions(delta_action_mask)],
