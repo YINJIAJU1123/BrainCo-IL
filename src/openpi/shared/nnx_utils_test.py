@@ -6,6 +6,7 @@ import flax.nnx as nnx
 import jax.numpy as jnp
 import numpy as np
 
+from openpi.models import model as model_lib
 from openpi.shared import nnx_utils
 
 
@@ -16,6 +17,14 @@ class _Affine(nnx.Module):
     def apply(self, x, *, bias=0.0, noise=None):
         del noise
         return x * self.scale + bias
+
+
+class _ObservationAffine(nnx.Module):
+    def __init__(self):
+        self.scale = nnx.Param(jnp.asarray(2.0, dtype=jnp.float32))
+
+    def apply(self, observation: model_lib.Observation):
+        return observation.state * self.scale
 
 
 def test_module_jit_compiled_executable_matches_standard_jit():
@@ -34,6 +43,17 @@ def test_module_jit_compiled_executable_matches_standard_jit():
         direct(jnp.arange(4, dtype=jnp.float32), noise=noise),
         standard(jnp.arange(4, dtype=jnp.float32), noise=noise),
     )
+
+
+def test_module_jit_compiled_executable_lowers_typed_dataclass_inputs():
+    observation = model_lib.Observation(
+        images={"base_0_rgb": jnp.ones((1, 2, 2, 3), dtype=jnp.float32)},
+        image_masks={"base_0_rgb": jnp.ones((1,), dtype=jnp.bool_)},
+        state=jnp.asarray([[1.0, -2.0]], dtype=jnp.float32),
+    )
+    direct = nnx_utils.module_jit(_ObservationAffine().apply, use_compiled_executable=True)
+
+    np.testing.assert_array_equal(direct(observation), jnp.asarray([[2.0, -4.0]], dtype=jnp.float32))
 
 
 def test_module_jit_compiled_executable_caches_by_full_signature(monkeypatch):

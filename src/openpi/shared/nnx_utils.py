@@ -10,6 +10,8 @@ from typing import Any, ParamSpec, TypeVar
 import flax.nnx as nnx
 import jax
 
+from openpi.shared import array_typing as at
+
 P = ParamSpec("P")
 R = TypeVar("R")
 
@@ -153,7 +155,11 @@ def module_jit(
                         meth.__qualname__,
                         len(compiled_cache) + 1,
                     )
-                    compiled_fn = jitted_fn.lower(state, *args, **kwargs).compile()
+                    # Lowering reconstructs pytree dataclasses with JAX ``ArgInfo`` placeholders. Runtime annotation
+                    # checkers correctly reject those placeholders as non-arrays even though they are valid lowering
+                    # inputs, so disable only those checks while JAX builds the lowered program.
+                    with at.disable_typechecking():
+                        compiled_fn = jitted_fn.lower(state, *args, **kwargs).compile()
                     try:
                         result = compiled_fn(state, *args, **kwargs)
                     except (TypeError, ValueError) as exc:
