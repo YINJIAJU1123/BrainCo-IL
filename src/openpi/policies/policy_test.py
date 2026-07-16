@@ -1,9 +1,36 @@
 from openpi_client import action_chunk_broker
 import pytest
 
+from openpi.models import act_config
+from openpi.models import pi0_config
+from openpi.models import pi0_fast
 from openpi.policies import aloha_policy
+from openpi.policies import policy_config
 from openpi.policies import policy_config as _policy_config
 from openpi.training import config as _config
+
+
+@pytest.mark.parametrize(
+    ("model_config", "is_pytorch", "override", "expected"),
+    [
+        (act_config.ACTConfig(), False, None, True),
+        (act_config.ACTConfig(), False, False, False),
+        (pi0_config.Pi0Config(), False, None, False),
+        (pi0_config.Pi0Config(pi05=True), False, None, False),
+        (pi0_fast.Pi0FASTConfig(), False, None, False),
+        (pi0_config.Pi0Config(pi05=True), False, True, True),
+        (act_config.ACTConfig(), True, True, False),
+    ],
+)
+def test_resolve_use_compiled_executable(model_config, is_pytorch, override, expected):
+    assert (
+        policy_config._resolve_use_compiled_executable(  # noqa: SLF001
+            model_config,
+            is_pytorch=is_pytorch,
+            override=override,
+        )
+        is expected
+    )
 
 
 @pytest.mark.manual

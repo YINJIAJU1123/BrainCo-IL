@@ -227,6 +227,11 @@ class BaseModelConfig(abc.ABC):
     def model_type(self) -> ModelType:
         """The model type."""
 
+    @property
+    def default_use_compiled_executable(self) -> bool:
+        """Whether inference should bypass the general jax.jit dispatch path by default."""
+        return False
+
     @abc.abstractmethod
     def create(self, rng: at.KeyArrayLike) -> "BaseModel":
         """Create a new model, initializing parameters."""

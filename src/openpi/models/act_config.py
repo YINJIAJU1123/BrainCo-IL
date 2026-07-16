@@ -64,6 +64,11 @@ class ACTConfig(_model.BaseModelConfig):
     def model_type(self) -> _model.ModelType:
         return _model.ModelType.ACT
 
+    @property
+    @override
+    def default_use_compiled_executable(self) -> bool:
+        return True
+
     @override
     def create(self, rng: at.KeyArrayLike) -> "ACT":
         from openpi.models.act import ACT

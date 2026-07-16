@@ -89,7 +89,15 @@ def create_policy(
         sample_kwargs=_sample_kwargs(train_config, opts),
         default_prompt=str(opts.get("default_prompt", "") or "") or None,
         pytorch_device=str(opts.get("device", "") or "") or None,
+        use_compiled_executable=_optional_bool(opts, "use_compiled_executable"),
     )
+
+
+def _optional_bool(options: dict[str, Any], key: str) -> bool | None:
+    value = options.get(key)
+    if value is not None and not isinstance(value, bool):
+        raise TypeError(f"runtime option {key!r} must be a bool, got {type(value).__name__}")
+    return value
 
 
 def _base_spec(

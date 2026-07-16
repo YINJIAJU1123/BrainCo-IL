@@ -33,6 +33,7 @@ class Policy(BasePolicy):
         metadata: dict[str, Any] | None = None,
         pytorch_device: str = "cpu",
         is_pytorch: bool = False,
+        use_compiled_executable: bool = False,
     ):
         """Initialize the Policy.
 
@@ -46,6 +47,7 @@ class Policy(BasePolicy):
             pytorch_device: Device to use for PyTorch models (e.g., "cpu", "cuda:0").
                           Only relevant when is_pytorch=True.
             is_pytorch: Whether the model is a PyTorch model. If False, assumes JAX model.
+            use_compiled_executable: Whether JAX inference should call signature-cached compiled executables directly.
         """
         self._model = model
         self._input_transform = _transforms.compose(transforms)
@@ -61,7 +63,10 @@ class Policy(BasePolicy):
             self._sample_actions = model.sample_actions
         else:
             # JAX model setup
-            self._sample_actions = nnx_utils.module_jit(model.sample_actions)
+            self._sample_actions = nnx_utils.module_jit(
+                model.sample_actions,
+                use_compiled_executable=use_compiled_executable,
+            )
             self._rng = rng or jax.random.key(0)
 
     @override

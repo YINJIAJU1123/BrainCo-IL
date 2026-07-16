@@ -22,6 +22,7 @@ def create_trained_policy(
     default_prompt: str | None = None,
     norm_stats: dict[str, transforms.NormStats] | None = None,
     pytorch_device: str | None = None,
+    use_compiled_executable: bool | None = None,
 ) -> _policy.Policy:
     """Create a policy from a trained checkpoint.
 
@@ -37,6 +38,8 @@ def create_trained_policy(
             from the checkpoint directory.
         pytorch_device: Device to use for PyTorch models (e.g., "cpu", "cuda", "cuda:0").
                       If None and is_pytorch=True, will use "cuda" if available, otherwise "cpu".
+        use_compiled_executable: Override direct compiled-executable JAX inference. The default enables it only for ACT;
+            pass False to fall back to the standard jax.jit dispatch path.
 
     Note:
         The function automatically detects whether the model is PyTorch-based by checking for the
@@ -91,4 +94,22 @@ def create_trained_policy(
         metadata=train_config.policy_metadata,
         is_pytorch=is_pytorch,
         pytorch_device=pytorch_device if is_pytorch else None,
+        use_compiled_executable=_resolve_use_compiled_executable(
+            train_config.model,
+            is_pytorch=is_pytorch,
+            override=use_compiled_executable,
+        ),
     )
+
+
+def _resolve_use_compiled_executable(
+    model_config: _model.BaseModelConfig,
+    *,
+    is_pytorch: bool,
+    override: bool | None,
+) -> bool:
+    if is_pytorch:
+        return False
+    if override is not None:
+        return override
+    return model_config.default_use_compiled_executable
