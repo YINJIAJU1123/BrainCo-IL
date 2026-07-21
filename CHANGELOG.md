@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+### Removed
+
+- 删除未被 BrainCo 主链路使用的 Aloha、DROID、Libero、UR5 和旧 BrainCo ROS2 示例。
+- 删除 PI0-FAST、RoboArena/Polaris、RLDS/DROID 数据加载和 PyTorch PI0 实现。
+- 删除独立 `openpi-client`、WebSocket policy server 与旧 Docker serving 方案。
+- 部署统一通过 `openpi.deploy.plugin` 加载自描述 JAX checkpoint。
+
 ## [0.1.0] - 2026-05-13
 
 汇总自 fork 起在 `upstream/main` 之上累积的全部偏离。基线：

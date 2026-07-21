@@ -34,7 +34,7 @@ debug_act
 
 以后做新实验时，不应该再往 `_CONFIGS` 里新增 `pi05_xxx_yyy` 这种 Python config。应该基于这两个 recipe，通过 CLI 或 YAML 覆写实验参数。
 
-官方 OpenPI 示例 config，比如 Aloha、Droid、Libero、RoboArena、Polaris，已经从 `_CONFIGS` 中移除，因此不会再作为训练选项出现。相关 DataConfig/transform 类暂时还保留在文件里，因为删除它们会牵涉更多 import 和示例代码清理，可以后续单独做。
+官方 OpenPI 的 Aloha、Droid、Libero、RoboArena、Polaris 配置、数据链路和示例已经删除。仓库只维护 BrainCo LeRobot 数据链路。
 
 ## 训练方式
 
@@ -154,9 +154,6 @@ train_config:
       fields:
         params_path: gs://openpi-assets/checkpoints/pi05_base/params
         skip_on_mismatch_regex: .*(action_in_proj|action_out_proj|state_proj).*
-
-    pytorch_weight_path: null
-    pytorch_training_precision: bfloat16
 
     lr_schedule:
       __class__: openpi.training.optimizer.CosineDecaySchedule
@@ -296,7 +293,7 @@ step 目录里也保存一份非常重要，因为部署时经常只拷贝一个
 ```text
 checkpoint_dir/
   train_config.yaml
-  params/                 # JAX checkpoint 参数，或 PyTorch 的 model.safetensors
+  params/                 # JAX checkpoint 参数
   assets/                 # norm stats 等资产
   config.yaml             # revo_deploy 使用的部署侧配置
 ```

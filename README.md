@@ -1,108 +1,87 @@
-# brainco-openpi
+# BrainCo-IL
 
-BrainCo-focused fork of [openpi](https://github.com/Physical-Intelligence/openpi) for supervised fine-tuning and serving pi0 / pi0.5 VLA policies on dual-arm + dual-dexterous-hand robots.
+BrainCo-IL is the BrainCo training and policy-runtime repository derived from
+[OpenPI](https://github.com/Physical-Intelligence/openpi). It intentionally keeps
+only the paths used by BrainCo robots:
 
-This repository keeps the upstream OpenPI model stack and adds a BrainCo high-dimensional action pipeline:
+- JAX PI0 / PI0.5 and ACT models
+- LeRobot dataset loading
+- BrainCo state, image, action, and delta transforms
+- partial pretrained-weight loading
+- self-describing `train_config.yaml` checkpoints
+- the external deploy plugin used by `revo_deploy`
 
-- BrainCo policy transforms in `src/openpi/policies/brainco_policy.py`
-- BrainCo LeRobot data config in `src/openpi/training/config.py`
-- Reference pi0.5 training config: `pi05_brainco_multi_56d`
-- Optional ROS2/OpenPI deployment example under `examples/brainco/`
-- Partial checkpoint loading for action-dimension changes
+Upstream robot examples, PI0-FAST, RLDS/DROID, the PyTorch PI0 implementation,
+WebSocket serving, and the old BrainCo ROS2 example are not part of this repository.
 
-## Reference Layout
+## Joint Layout
 
-The reference BrainCo layout is 56D:
-
-```text
-left_arm(7) + left_hand(21) + right_arm(7) + right_hand(21) = 56
-```
-
-Both `observation.state` and `action` are expected to use the same ordering.
-
-## Data Format
-
-The reference `LeRobotBrainCoDataConfig` expects LeRobot samples with:
+The default 56D layout is:
 
 ```text
-observation.state                      float32[56]
-observation.images.stereo_right         uint8[H, W, 3]
-observation.images.cam_left_wrist       uint8[H, W, 3]
-observation.images.cam_right_wrist      uint8[H, W, 3]
-action                                  float32[action_horizon, 56]
-prompt                                  string
+left_arm(7) + right_arm(7) + left_hand(21) + right_hand(21)
 ```
 
-If your converted dataset uses different image key names, update the `RepackTransform` in `LeRobotBrainCoDataConfig`.
-
-## Training
-
-Edit the dataset paths in `src/openpi/training/config.py` under `pi05_brainco_multi_56d`, then compute normalization statistics and train:
-
-```bash
-uv run scripts/compute_norm_stats.py --config-name pi05_brainco_multi_56d
-
-XLA_PYTHON_CLIENT_MEM_FRACTION=0.9 \
-  uv run scripts/train.py pi05_brainco_multi_56d \
-  --exp-name=my_brainco_run
-```
-
-The config uses `PartialCheckpointWeightLoader` to load compatible pi0.5 base weights while randomly initializing shape-mismatched action/state projection layers. This is what makes changing from the upstream action dimension to 56D straightforward.
-
-## Serving
-
-```bash
-uv run scripts/serve_policy.py policy:checkpoint \
-  --policy.config=pi05_brainco_multi_56d \
-  --policy.dir=/path/to/checkpoint
-```
-
-The policy server expects observations using the keys produced by `BrainCoInputs`:
-
-```text
-observation/state
-observation/image
-observation/left_wrist_image
-observation/right_wrist_image
-prompt
-```
-
-## Adapting Dimensions
-
-To change the morphology, keep the joint ordering explicit and update these together:
-
-- `model.action_dim` in the training config
-- `BRAINCO_ACTION_DIM` in `src/openpi/policies/brainco_policy.py`
-- `DeltaActions` mask in `LeRobotBrainCoDataConfig`
-- dataset `observation.state` and `action` widths
-- normalization stats, recomputed for the new dataset
-
-The current reference uses 21 DOF per hand:
-
-```python
-_transforms.make_bool_mask(7, -21, 7, -21)
-```
-
-## Repository Layout
-
-```text
-examples/brainco/                  optional ROS2 deployment example
-packages/openpi-client/             client/runtime utilities
-scripts/                            train, compute_norm_stats, serve_policy
-src/openpi/policies/brainco_policy.py
-src/openpi/training/config.py
-```
+The authoritative layout is serialized by
+`BrainCoPolicyIOConfig` in each checkpoint. Reduced policies such as right-arm
+28D use the same group-based contract.
 
 ## Install
 
 ```bash
 GIT_LFS_SKIP_SMUDGE=1 uv sync
-GIT_LFS_SKIP_SMUDGE=1 uv pip install -e .
 ```
 
-## Upstream
+## Train
 
-This project is based on OpenPI and keeps upstream examples for ALOHA, DROID, LIBERO, and the base pi0/pi0.5 models. See the original [Physical-Intelligence/openpi](https://github.com/Physical-Intelligence/openpi) repository for upstream model details.
+Start from one of the YAML files in
+`src/openpi/training/training_config_template/`:
+
+```bash
+uv run python scripts/compute_norm_stats.py \
+  --config-path \
+  src/openpi/training/training_config_template/pi05_brainco_revo3_0712_ght_56d.yaml
+
+uv run python scripts/train.py \
+  src/openpi/training/training_config_template/pi05_brainco_revo3_0712_ght_56d.yaml
+```
+
+Simple scalar values can also be overridden from the CLI when starting from the
+`pi05_brainco_56d` or `act_brainco_56d` recipe.
+
+Training writes the fully resolved config to the run directory and every step
+checkpoint as `train_config.yaml`. That file, the checkpoint parameters, and
+normalization assets are the complete deployment artifact.
+
+## Deploy Contract
+
+`revo_deploy` imports:
+
+```text
+openpi.deploy.plugin
+```
+
+The plugin reads `train_config.yaml`, reports the observation/action contract,
+loads the JAX model and checkpoint, and owns model-specific preprocessing. The
+deploy side sends raw RGB `uint8` HWC images and the configured joint state.
+
+See:
+
+- `vla_trainning_deploy_handshake.md`
+- `docs/brainco_il_beginner/README.md`
+- `docs/jax_in_brainco_il.md`
+- `src/openpi/deploy/plugin.py`
+
+## Core Layout
+
+```text
+scripts/train.py                         training loop
+scripts/compute_norm_stats.py            dataset normalization statistics
+src/openpi/models/                       PI0/PI0.5 and ACT networks
+src/openpi/training/                     config, loader, optimizer, checkpoints
+src/openpi/policies/brainco_policy.py    BrainCo observation/action transforms
+src/openpi/deploy/plugin.py              external deployment boundary
+```
 
 ## License
 
