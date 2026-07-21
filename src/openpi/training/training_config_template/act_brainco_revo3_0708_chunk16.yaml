@@ -25,8 +25,6 @@ train_config:
     weight_loader:
       __class__: openpi.training.weight_loaders.NoOpWeightLoader
       fields: {}
-    pytorch_weight_path: null
-    pytorch_training_precision: bfloat16
     lr_schedule:
       __class__: openpi.training.optimizer.CosineDecaySchedule
       fields:
@@ -78,9 +76,6 @@ train_config:
             action_sequence_keys:
               - actions
             prompt_from_task: true
-            rlds_data_dir: null
-            action_space: null
-            datasets: []
             lerobot_datasets:
               - __class__: openpi.training.config.LeRobotDataset
                 fields:

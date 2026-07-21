@@ -1,4 +1,9 @@
-"""See _CONFIGS for the list of available configs."""
+"""BrainCo 策略可序列化的训练配置图.
+
+TrainConfig 是 scripts/train.py 使用的根配置对象.内部 factory 会展开模型结构、
+数据 transforms、优化器设置和权重加载方式.最终展开的对象也会保存进每个
+checkpoint,使部署端无需查询配置注册表即可重建同一策略.
+"""
 
 import abc
 from collections.abc import Sequence
@@ -19,20 +24,16 @@ import openpi.models.act_config as act_config
 import openpi.models.model as _model
 import openpi.models.pi0_config as pi0_config
 import openpi.models.tokenizer as _tokenizer
-import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.brainco_policy as brainco_policy
-import openpi.policies.droid_policy as droid_policy
-import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
 import openpi.shared.nnx_utils as nnx_utils
 import openpi.shared.normalize as _normalize
-import openpi.training.droid_rlds_dataset as droid_rlds_dataset
 import openpi.training.optimizer as _optimizer
 import openpi.training.weight_loaders as weight_loaders
 import openpi.transforms as _transforms
 
 ModelType: TypeAlias = _model.ModelType
-# Work around a tyro issue with using nnx.filterlib.Filter directly.
+# 规避 tyro 直接处理 nnx.filterlib.Filter 时的兼容问题.
 Filter: TypeAlias = nnx.filterlib.Filter
 FreezeStrategy: TypeAlias = Literal["none", "lora_and_action_interface", "action_interface_only"]
 
@@ -44,13 +45,12 @@ _TRAINABLE_PARAMETER_REGEX_BY_FREEZE_STRATEGY: dict[FreezeStrategy, str] = {
 
 @dataclasses.dataclass(frozen=True)
 class AssetsConfig:
-    """Determines the location of assets (e.g., norm stats) that will be used to set up the data pipeline.
+    """指定构建数据流水线所需 assets(例如 norm stats)的位置.
 
-    These assets will be replicated inside the checkpoint under the `assets/asset_id` directory.
+    这些 assets 会复制到 checkpoint 的 `assets/asset_id` 目录中.
 
-    This can be used to load assets from a different checkpoint (e.g., base model checkpoint) or some other
-    centralized location. For example, to load the norm stats for the Trossen robot from the base model checkpoint
-    during fine-tuning, use:
+    该机制可从其他 checkpoint(例如基础模型 checkpoint)或统一位置加载
+    assets.例如微调时从基础模型 checkpoint 加载 Trossen 机器人的 norm stats:
 
     ```
     AssetsConfig(
@@ -60,80 +60,70 @@ class AssetsConfig:
     ```
     """
 
-    # Assets directory. If not provided, the config assets_dirs will be used. This is useful to load assets from
-    # a different checkpoint (e.g., base model checkpoint) or some other centralized location.
+    # assets 根目录;未设置时使用 TrainConfig.assets_dirs.
+    # 可用于从基础模型 checkpoint 或其他统一位置加载 assets.
     assets_dir: str | None = None
 
-    # Asset id. If not provided, the repo id will be used. This allows users to reference assets that describe
-    # different robot platforms.
+    # asset 标识;未设置时使用 repo_id,便于引用不同机器人平台的 assets.
     asset_id: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
 class LeRobotDataset:
-    """Configuration for a single LeRobot dataset in multi-dataset training."""
+    """多数据集训练中单个 LeRobot 数据集的配置."""
 
-    # LeRobot repo id or local path
+    # LeRobot repo_id 或本地路径.
     repo_id: str
-    # Sampling weight for this dataset (must sum to 1.0 across all datasets)
+    # 当前数据集的采样权重;所有数据集权重之和必须为 1.
     weight: float
-    # Optional asset_id override for this specific dataset
+    # 可选:覆盖当前数据集使用的 asset_id.
     asset_id: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
 class DataConfig:
-    # LeRobot repo id. If None, fake data will be created.
+    # LeRobot repo_id;为空时创建 fake data.
     repo_id: str | None = None
-    # Directory within the assets directory containing the data assets.
+    # 数据 assets 在 assets 根目录下的子目录名.
     asset_id: str | None = None
-    # Contains precomputed normalization stats. If None, normalization will not be performed.
+    # 预计算的归一化统计量;为空时不执行归一化.
     norm_stats: dict[str, _transforms.NormStats] | None = None
 
-    # Used to adopt the inputs from a dataset specific format to a common format
-    # which is expected by the data transforms.
+    # 将数据集特有的键结构重排为 data transforms 期望的通用结构.
     repack_transforms: _transforms.Group = dataclasses.field(default_factory=_transforms.Group)
-    # Data transforms, typically include robot specific transformations. Will be applied
-    # before the data is normalized. See `model.Observation` and `model.Actions` to learn about the
-    # normalized data.
+    # 数据 transforms,通常包含机器人专属变换,在归一化前执行.
+    # 归一化后的结构参见 `model.Observation` 和 `model.Actions`.
     data_transforms: _transforms.Group = dataclasses.field(default_factory=_transforms.Group)
-    # Model specific transforms. Will be applied after the data is normalized.
+    # 模型专属 transforms,在数据归一化后执行.
     model_transforms: _transforms.Group = dataclasses.field(default_factory=_transforms.Group)
-    # If true, will use quantile normalization. Otherwise, normal z-score normalization will be used.
+    # 为 true 时使用分位数归一化,否则使用标准 z-score 归一化.
     use_quantile_norm: bool = False
 
-    # Names of keys that will be used by the data loader to generate the action sequence. The length of the
-    # sequence is defined by the `action_horizon` field in the model config. This should be adjusted if your
-    # LeRobot dataset is using different keys to represent the action.
+    # DataLoader 用于生成动作序列的原始键名.序列长度由模型配置中的
+    # action_horizon 决定;如果 LeRobot 数据集使用其他动作键,需要修改此项.
     action_sequence_keys: Sequence[str] = ("actions",)
 
-    # If true, will use the LeRobot dataset task to define the prompt.
+    # 为 true 时,使用 LeRobot 数据集 task 生成 prompt.
     prompt_from_task: bool = False
 
-    # Only used for RLDS data loader (ie currently only used for DROID).
-    rlds_data_dir: str | None = None
-    # Action space for DROID dataset.
-    action_space: droid_rlds_dataset.DroidActionSpace | None = None
-    # List of datasets to sample from: name, version, weight, and optionally filter_dict_path
-    datasets: Sequence[droid_rlds_dataset.RLDSDataset] = ()
-    # List of LeRobot datasets for multi-dataset training (co-training)
+    # 多数据集联合训练使用的 LeRobot 数据集列表.
     lerobot_datasets: Sequence[LeRobotDataset] = ()
-    # Multi-dataset mode: "concat" (use all data) or "weighted" (sample by weight)
-    # - "concat": Concatenate all datasets, every sample from every dataset will be used
-    # - "weighted": Sample from datasets according to weights (some data may be repeated/skipped)
+    # 多数据集模式:
+    # - concat:拼接全部数据集,使用每一条样本.
+    # - weighted:按权重采样,部分样本可能重复或被跳过.
     multi_dataset_mode: Literal["concat", "weighted"] = "concat"
 
 
 class GroupFactory(Protocol):
     def __call__(self, model_config: _model.BaseModelConfig) -> _transforms.Group:
-        """Create a group."""
+        """创建 transform 组."""
 
 
 @dataclasses.dataclass(frozen=True)
 class ModelTransformFactory(GroupFactory):
-    """Creates model transforms for standard pi0 models."""
+    """根据 ModelType 创建最终面向模型的 transforms."""
 
-    # If provided, will determine the default prompt that be used by the model.
+    # 设置后作为模型使用的默认 prompt.
     default_prompt: str | None = None
 
     def __call__(self, model_config: _model.BaseModelConfig) -> _transforms.Group:
@@ -162,35 +152,10 @@ class ModelTransformFactory(GroupFactory):
                         _transforms.PadStatesAndActions(model_config.action_dim),
                     ],
                 )
-            case _model.ModelType.PI0_FAST:
-                tokenizer_cls = (
-                    _tokenizer.FASTTokenizer
-                    if model_config.fast_model_tokenizer is None
-                    else model_config.fast_model_tokenizer
-                )
-                tokenizer_kwargs = (
-                    {} if model_config.fast_model_tokenizer_kwargs is None else model_config.fast_model_tokenizer_kwargs
-                )
-                return _transforms.Group(
-                    inputs=[
-                        _transforms.InjectDefaultPrompt(self.default_prompt),
-                        _transforms.ResizeImages(224, 224),
-                        _transforms.TokenizeFASTInputs(
-                            tokenizer_cls(model_config.max_token_len, **tokenizer_kwargs),
-                        ),
-                    ],
-                    outputs=[
-                        _transforms.ExtractFASTActions(
-                            tokenizer_cls(model_config.max_token_len, **tokenizer_kwargs),
-                            action_horizon=model_config.action_horizon,
-                            action_dim=model_config.action_dim,
-                        )
-                    ],
-                )
             case _model.ModelType.ACT:
-                # ACT has no language / VLM component, so it does NOT tokenize a prompt.
-                # It only needs resized images and state/actions padded to action_dim.
-                # Drop any prompt carried by LeRobot task metadata before JAX device_put.
+                # ACT 不包含语言/VLM 模块,因此不执行 prompt tokenization.
+                # 它只需要缩放图像,并将 state/actions padding 到 action_dim.
+                # 在放入 JAX 设备前丢弃 LeRobot task metadata 携带的 prompt.
                 return _transforms.Group(
                     inputs=[
                         _transforms.ResizeImages(224, 224),
@@ -202,18 +167,20 @@ class ModelTransformFactory(GroupFactory):
 
 @dataclasses.dataclass(frozen=True)
 class DataConfigFactory(abc.ABC):
-    # The LeRobot repo id.
+    # LeRobot repo_id.
     repo_id: str = tyro.MISSING
-    # Determines how the assets will be loaded.
+    # 指定 assets 的加载方式.
     assets: AssetsConfig = dataclasses.field(default_factory=AssetsConfig)
-    # Base config that will be updated by the factory.
+    # factory 展开时使用的基础 DataConfig.
     base_config: tyro.conf.Suppress[DataConfig | None] = None
 
     @abc.abstractmethod
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        """Create a data config."""
+        """创建完整的数据配置."""
 
     def create_base_config(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        # 在此解析归一化配置,使训练和策略创建从同一 DataConfig
+        # 获得相同的统计量与归一化模式.
         repo_id = self.repo_id if self.repo_id is not tyro.MISSING else None
         asset_id = self.assets.asset_id or repo_id
         return dataclasses.replace(
@@ -247,170 +214,21 @@ class FakeDataConfig(DataConfigFactory):
 
 
 @dataclasses.dataclass(frozen=True)
-class SimpleDataConfig(DataConfigFactory):
-    # Factory for the data transforms.
-    data_transforms: tyro.conf.Suppress[GroupFactory] = dataclasses.field(default_factory=GroupFactory)
-    # Factory for the model transforms.
-    model_transforms: tyro.conf.Suppress[GroupFactory] = dataclasses.field(default_factory=ModelTransformFactory)
-
-    @override
-    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
-            data_transforms=self.data_transforms(model_config),
-            model_transforms=self.model_transforms(model_config),
-        )
-
-
-@dataclasses.dataclass(frozen=True)
-class LeRobotAlohaDataConfig(DataConfigFactory):
-    # If true, will convert joint dimensions to deltas with respect to the current state before passing to the model.
-    # Gripper dimensions will remain in absolute values.
-    use_delta_joint_actions: bool = True
-    # If provided, will be injected into the input data if the "prompt" key is not present.
-    default_prompt: str | None = None
-    # If true, this will convert the joint and gripper values from the standard Aloha space to
-    # the space used by the pi internal runtime which was used to train the base model. People who
-    # use standard Aloha data should set this to true.
-    adapt_to_pi: bool = True
-
-    # Repack transforms.
-    repack_transforms: tyro.conf.Suppress[_transforms.Group] = dataclasses.field(
-        default=_transforms.Group(
-            inputs=[
-                _transforms.RepackTransform(
-                    {
-                        "images": {"cam_high": "observation.images.top"},
-                        "state": "observation.state",
-                        "actions": "action",
-                    }
-                )
-            ]
-        )
-    )
-    # Action keys that will be used to read the action sequence from the dataset.
-    action_sequence_keys: Sequence[str] = ("action",)
-
-    @override
-    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        data_transforms = _transforms.Group(
-            inputs=[aloha_policy.AlohaInputs(adapt_to_pi=self.adapt_to_pi)],
-            outputs=[aloha_policy.AlohaOutputs(adapt_to_pi=self.adapt_to_pi)],
-        )
-        if self.use_delta_joint_actions:
-            delta_action_mask = _transforms.make_bool_mask(6, -1, 6, -1)
-            data_transforms = data_transforms.push(
-                inputs=[_transforms.DeltaActions(delta_action_mask)],
-                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
-            )
-
-        model_transforms = ModelTransformFactory(default_prompt=self.default_prompt)(model_config)
-
-        return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
-            repack_transforms=self.repack_transforms,
-            data_transforms=data_transforms,
-            model_transforms=model_transforms,
-            action_sequence_keys=self.action_sequence_keys,
-        )
-
-
-@dataclasses.dataclass(frozen=True)
-class LeRobotLiberoDataConfig(DataConfigFactory):
-    """
-    This config is used to configure transforms that are applied at various parts of the data pipeline.
-    For your own dataset, you can copy this class and modify the transforms to match your dataset based on the
-    comments below.
-    """
-
-    extra_delta_transform: bool = False
-
-    @override
-    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        # The repack transform is *only* applied to the data coming from the dataset,
-        # and *not* during inference. We can use it to make inputs from the dataset look
-        # as close as possible to those coming from the inference environment (e.g. match the keys).
-        # Below, we match the keys in the dataset (which we defined in the data conversion script) to
-        # the keys we use in our inference pipeline (defined in the inference script for libero).
-        # For your own dataset, first figure out what keys your environment passes to the policy server
-        # and then modify the mappings below so your dataset's keys get matched to those target keys.
-        # The repack transform simply remaps key names here.
-        repack_transform = _transforms.Group(
-            inputs=[
-                _transforms.RepackTransform(
-                    {
-                        "observation/image": "image",
-                        "observation/wrist_image": "wrist_image",
-                        "observation/state": "state",
-                        "actions": "actions",
-                        "prompt": "prompt",
-                    }
-                )
-            ]
-        )
-
-        # The data transforms are applied to the data coming from the dataset *and* during inference.
-        # Below, we define the transforms for data going into the model (``inputs``) and the transforms
-        # for data coming out of the model (``outputs``) (the latter is only used during inference).
-        # We defined these transforms in `libero_policy.py`. You can check the detailed comments there for
-        # how to modify the transforms to match your dataset. Once you created your own transforms, you can
-        # replace the transforms below with your own.
-        data_transforms = _transforms.Group(
-            inputs=[libero_policy.LiberoInputs(model_type=model_config.model_type)],
-            outputs=[libero_policy.LiberoOutputs()],
-        )
-
-        # One additional data transform: pi0 models are trained on delta actions (relative to the first
-        # state in each action chunk). IF your data has ``absolute`` actions (e.g. target joint angles)
-        # you can uncomment the following line to convert the actions to delta actions. The only exception
-        # is for the gripper actions which are always absolute.
-        # In the example below, we would apply the delta conversion to the first 6 actions (joints) and
-        # leave the 7th action (gripper) unchanged, i.e. absolute.
-        # In Libero, the raw actions in the dataset are already delta actions, so we *do not* need to
-        # apply a separate delta conversion (that's why it's commented out). Choose whether to apply this
-        # transform based on whether your dataset uses ``absolute`` or ``delta`` actions out of the box.
-
-        # LIBERO already represents actions as deltas, but we have some old Pi0 checkpoints that are trained with this
-        # extra delta transform.
-        if self.extra_delta_transform:
-            delta_action_mask = _transforms.make_bool_mask(6, -1)
-            data_transforms = data_transforms.push(
-                inputs=[_transforms.DeltaActions(delta_action_mask)],
-                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
-            )
-
-        # Model transforms include things like tokenizing the prompt and action targets
-        # You do not need to change anything here for your own dataset.
-        model_transforms = ModelTransformFactory()(model_config)
-
-        # We return all data transforms for training and inference. No need to change anything here.
-        return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
-            repack_transforms=repack_transform,
-            data_transforms=data_transforms,
-            model_transforms=model_transforms,
-        )
-
-
-@dataclasses.dataclass(frozen=True)
 class LeRobotBrainCoDataConfig(DataConfigFactory):
-    """
-    Config for BrainCo robot datasets.
+    """BrainCo 机器人数据集配置.
 
-    The semantic state/action layout is described by ``policy_io``. This supports
-    both the full 56D dual-arm setup and reduced layouts such as the 28D
-    right-arm + right-hand policy.
+    state/action 的语义布局由 ``policy_io`` 描述.既支持完整的 56D 双臂配置,
+    也支持 28D 右臂加右手等裁剪布局.
 
-    Common dataset features:
+    常见数据集字段:
     - observation.state: joint state vector described by ``policy_io``
     - action: action vector described by ``policy_io``
     - observation.images.cam_left_wrist: (480, 640, 3)
     - observation.images.cam_right_wrist: (480, 640, 3)
     - observation.images.stereo_right or observation.images.cam_head
 
-    The action groups must exactly cover ``model.action_dim``. Projection layers
-    may need to be initialized from scratch when that dimension differs from the
-    pretrained checkpoint.
+    action groups 必须完整覆盖 ``model.action_dim``.当该维度与预训练
+    checkpoint 不同时,输入输出投影层可能需要重新初始化.
     """
 
     extra_delta_transform: bool = False
@@ -421,13 +239,14 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
     hand_dof: int = 21
     head_camera_key: str = "observation.images.stereo_right"
     revo3_eef_joint_hand_to_joint_hand: bool = False
-    # Action key name in the raw dataset (used by LeRobot loader BEFORE repack transform)
+    # 原始数据集中的 action 键名;LeRobot loader 会在 repack transform 前使用.
     action_sequence_keys: Sequence[str] = ("action",)
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        """将 BrainCo 数据集语义展开为有序 transform 流水线."""
         self.policy_io.validate(model_config.action_dim)
-        # Map dataset keys to the keys expected by transforms
+        # 将数据集原始键映射为 transforms 期望的键.
         repack_transform = _transforms.Group(
             inputs=[
                 _transforms.RepackTransform(
@@ -458,8 +277,8 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
             outputs=[brainco_policy.BrainCoOutputs(action_dim=model_config.action_dim)],
         )
 
-        # Apply training-time delta conversion by semantic group name. The output
-        # transform always converts model deltas back to absolute joint targets.
+        # 按语义 group 在训练输入侧执行 delta 转换;
+        # 输出 transform 始终将模型 delta 恢复为 absolute 关节目标.
         if self.extra_delta_transform:
             delta_action_mask = _transforms.make_bool_mask(*self.policy_io.delta_mask_dims())
 
@@ -468,6 +287,7 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
                 outputs=[_transforms.AbsoluteActions(delta_action_mask)],
             )
 
+        # PI0.5 对 prompt/state 做 tokenization;ACT 丢弃语言并保留连续 state.
         model_transforms = ModelTransformFactory()(model_config)
 
         return dataclasses.replace(
@@ -480,208 +300,94 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
 
 
 @dataclasses.dataclass(frozen=True)
-class RLDSDroidDataConfig(DataConfigFactory):
-    """
-    Config for training on DROID, using RLDS data format (for efficient training on larger datasets).
-    """
-
-    rlds_data_dir: str | None = None
-    action_space: droid_rlds_dataset.DroidActionSpace | None = None
-
-    # Filtering options. Can pass a path to a dictionary that maps episodes to timestep ranges
-    # to tuples denoting ranges of time steps to keep (start, end). Episodes are uniquely identified with
-    # f"{recording_folderpath}--{file_path}", both of which are present in the RLDS episode metadata.
-
-    # List of datasets to sample from: name, version, weight, and optionally filter_dict_path
-    datasets: Sequence[droid_rlds_dataset.RLDSDataset] = (
-        droid_rlds_dataset.RLDSDataset(
-            name="droid",
-            version="1.0.1",
-            weight=1.0,
-            filter_dict_path="gs://openpi-assets/droid/droid_sample_ranges_v1_0_1.json",
-        ),
-    )
-
-    @override
-    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        repack_transform = _transforms.Group(
-            inputs=[
-                _transforms.RepackTransform(
-                    {
-                        "observation/exterior_image_1_left": "observation/image",
-                        "observation/wrist_image_left": "observation/wrist_image",
-                        "observation/joint_position": "observation/joint_position",
-                        "observation/gripper_position": "observation/gripper_position",
-                        "actions": "actions",
-                        "prompt": "prompt",
-                    }
-                )
-            ]
-        )
-
-        data_transforms = _transforms.Group(
-            inputs=[droid_policy.DroidInputs(model_type=model_config.model_type)],
-            outputs=[droid_policy.DroidOutputs()],
-        )
-
-        if self.action_space == droid_rlds_dataset.DroidActionSpace.JOINT_POSITION:
-            # Data loader returns absolute joint position actions -- convert to delta actions for training.
-            delta_action_mask = _transforms.make_bool_mask(7, -1)
-            data_transforms = data_transforms.push(
-                inputs=[_transforms.DeltaActions(delta_action_mask)],
-                outputs=[_transforms.AbsoluteActions(delta_action_mask)],
-            )
-
-        model_transforms = ModelTransformFactory()(model_config)
-
-        assert self.rlds_data_dir is not None, "Need to set rlds data dir for RLDS data loader."
-
-        return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
-            repack_transforms=repack_transform,
-            data_transforms=data_transforms,
-            model_transforms=model_transforms,
-            rlds_data_dir=self.rlds_data_dir,
-            action_space=self.action_space,
-            datasets=self.datasets,
-        )
-
-
-@dataclasses.dataclass(frozen=True)
-class LeRobotDROIDDataConfig(DataConfigFactory):
-    """
-    Example data config for custom DROID dataset in LeRobot format.
-    To convert your custom DROID dataset (<10s of hours) to LeRobot format, see examples/droid/convert_droid_data_to_lerobot.py
-    """
-
-    @override
-    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
-        repack_transform = _transforms.Group(
-            inputs=[
-                _transforms.RepackTransform(
-                    {
-                        "observation/exterior_image_1_left": "exterior_image_1_left",
-                        "observation/exterior_image_2_left": "exterior_image_2_left",
-                        "observation/wrist_image_left": "wrist_image_left",
-                        "observation/joint_position": "joint_position",
-                        "observation/gripper_position": "gripper_position",
-                        "actions": "actions",
-                        "prompt": "prompt",
-                    }
-                )
-            ]
-        )
-        # We assume joint *velocity* actions, so we should *not* apply an additional delta transform.
-        data_transforms = _transforms.Group(
-            inputs=[droid_policy.DroidInputs(model_type=model_config.model_type)],
-            outputs=[droid_policy.DroidOutputs()],
-        )
-        model_transforms = ModelTransformFactory()(model_config)
-
-        return dataclasses.replace(
-            self.create_base_config(assets_dirs, model_config),
-            repack_transforms=repack_transform,
-            data_transforms=data_transforms,
-            model_transforms=model_transforms,
-        )
-
-
-@dataclasses.dataclass(frozen=True)
 class TrainConfig:
-    # Name of the config. Must be unique. Will be used to reference this config.
+    """训练和部署流水线使用的完整、可序列化输入配置."""
+    # 配置名称,必须唯一,用于引用该配置.
     name: tyro.conf.Suppress[str]
-    # Project name.
+    # 项目名称.
     project_name: str = "openpi"
-    # Experiment name. Will be used to name the metadata and checkpoint directories.
+    # 实验名称,用于命名 metadata 和 checkpoint 目录.
     exp_name: str = tyro.MISSING
 
-    # Defines the model config. Some attributes (action_dim, action_horizon, and max_token_len) are shared by all models
-    # -- see BaseModelConfig. Specific model implementations (e.g., Pi0Config) inherit from BaseModelConfig and may
-    # define additional attributes.
+    # 模型配置.action_dim、action_horizon、max_token_len 等字段由所有模型共享,
+    # 参见 BaseModelConfig;具体模型配置(如 Pi0Config)可增加额外字段.
     model: _model.BaseModelConfig = dataclasses.field(default_factory=pi0_config.Pi0Config)
 
-    # A weight loader can optionally load (possibly partial) weights from disk after the model is initialized.
+    # 模型初始化后,可通过 weight loader 从磁盘加载完整或部分权重.
     weight_loader: weight_loaders.WeightLoader = dataclasses.field(default_factory=weight_loaders.NoOpWeightLoader)
-
-    # Optional path to a PyTorch checkpoint to load weights from.
-    pytorch_weight_path: str | None = None
-
-    # Precision for PyTorch training.
-    pytorch_training_precision: Literal["bfloat16", "float32"] = "bfloat16"
 
     lr_schedule: _optimizer.LRScheduleConfig = dataclasses.field(default_factory=_optimizer.CosineDecaySchedule)
     optimizer: _optimizer.OptimizerConfig = dataclasses.field(default_factory=_optimizer.AdamW)
     ema_decay: float | None = 0.99
 
-    # Specifies which weights should be frozen.
+    # 指定需要冻结的参数.
     freeze_filter: tyro.conf.Suppress[Filter] = dataclasses.field(default_factory=nnx.Nothing)
-    # Serializable BrainCo fine-tuning strategy. Unlike freeze_filter, this field round-trips through train_config.yaml.
+    # 可序列化的 BrainCo 微调策略;与 freeze_filter 不同,该字段可以写入并恢复自 train_config.yaml.
     freeze_strategy: FreezeStrategy = "none"
 
-    # Determines the data to be trained on.
+    # 指定训练数据及其处理方式.
     data: DataConfigFactory = dataclasses.field(default_factory=FakeDataConfig)
 
-    # Base directory for config assets (e.g., norm stats).
+    # 配置 assets 的根目录,例如 norm stats.
     assets_base_dir: str = "./assets"
-    # Base directory for checkpoints.
+    # checkpoint 根目录.
     checkpoint_base_dir: str = "./checkpoints"
 
-    # Random seed that will be used by random generators during training.
+    # 训练随机数生成器使用的 seed.
     seed: int = 42
-    # Global batch size.
+    # 全局 batch 大小.
     batch_size: int = 32
-    # Number of workers to use for the data loader. Increasing this number will speed up data loading but
-    # will increase memory and CPU usage.
+    # DataLoader worker 数量.增加该值可提高数据加载速度,
+    # 同时也会增加内存和 CPU 占用.
     num_workers: int = 2
-    # Number of train steps (batches) to run.
+    # 训练总步数,每一步对应一个 batch.
     num_train_steps: int = 30_000
 
-    # How often (in steps) to log training metrics.
+    # 每隔多少步记录一次训练指标.
     log_interval: int = 100
-    # How often (in steps) to save checkpoints.
+    # 每隔多少步保存一次 checkpoint.
     save_interval: int = 1000
-    # If set, any existing checkpoints matching step % keep_period == 0 will not be deleted.
+    # 设置后,满足 step % keep_period == 0 的 checkpoint 会长期保留.
     keep_period: int | None = 5000
-    # Save the final training step even when it does not land on save_interval.
+    # 即使最终步不落在 save_interval 上,也保存最终 checkpoint.
     save_final_checkpoint: bool = True
 
-    # If true, will overwrite the checkpoint directory if it already exists.
+    # 为 true 时覆盖已存在的 checkpoint 目录.
     overwrite: bool = False
-    # If true, will resume training from the last checkpoint.
+    # 为 true 时从最新 checkpoint 恢复训练.
     resume: bool = False
 
-    # If true, will enable wandb logging.
+    # 为 true 时启用实验指标记录;当前实现使用 SwanLab.
     wandb_enabled: bool = True
 
-    # Used to pass metadata to the policy server.
+    # 传递给策略服务的附加 metadata.
     policy_metadata: dict[str, Any] | None = None
 
-    # If the value is greater than 1, FSDP will be enabled and shard across number of specified devices; overall
-    # device memory will be reduced but training could potentially be slower.
-    # eg. if total device is 4 and fsdp devices is 2; then the model will shard to 2 devices and run
-    # data parallel between 2 groups of devices.
+    # 大于 1 时启用 FSDP,并在指定数量的设备间切分模型,可降低单卡显存,
+    # 但训练可能变慢.例如共有 4 张卡且 fsdp_devices=2 时,
+    # 每 2 张卡组成一个模型分片组,两个组之间执行数据并行.
     fsdp_devices: int = 1
 
     @property
     def assets_dirs(self) -> pathlib.Path:
-        """Get the assets directory for this config."""
+        """返回当前配置对应的 assets 目录."""
         return (pathlib.Path(self.assets_base_dir) / self.name).resolve()
 
     @property
     def checkpoint_dir(self) -> pathlib.Path:
-        """Get the checkpoint directory for this config."""
+        """返回当前配置对应的 checkpoint 目录."""
         if not self.exp_name:
             raise ValueError("--exp_name must be set")
         return (pathlib.Path(self.checkpoint_base_dir) / self.name / self.exp_name).resolve()
 
     @property
     def trainable_filter(self) -> nnx.filterlib.Filter:
-        """Get the filter for the trainable parameters."""
+        """选择允许自动求导和 Optax 更新的参数."""
         return nnx.All(nnx.Param, nnx.Not(self.effective_freeze_filter))
 
     @property
     def effective_freeze_filter(self) -> nnx.filterlib.Filter:
-        """Resolve a serializable freeze strategy into the NNX filter used by training."""
+        """将可序列化冻结策略解析为训练使用的 NNX filter."""
         if self.freeze_strategy == "none":
             return self.freeze_filter
         trainable_regex = _TRAINABLE_PARAMETER_REGEX_BY_FREEZE_STRATEGY[self.freeze_strategy]
@@ -705,14 +411,13 @@ class TrainConfig:
             raise ValueError("action_interface_only requires non-LoRA model variants")
 
 
-# Use `get_config` if you need to get a config by name in your code.
+# 在代码中需要按名称获取配置时,请使用 `get_config`.
 _CONFIGS = [
     #
-    # BrainCo dual-arm dual-dexterous-hand base recipes (56D).
-    # Experiment-specific values such as dataset path, action horizon, batch
-    # size, save interval, and learning rate should be passed through CLI/YAML
-    # overrides. The resolved TrainConfig is saved into every checkpoint as
-    # train_config.yaml and becomes the deploy source of truth.
+    # BrainCo 双臂双灵巧手 56D 基础配方.
+    # 数据集路径、action horizon、batch size、保存间隔和学习率等实验参数,
+    # 应通过 CLI/YAML 覆盖传入.展开后的 TrainConfig 会以 train_config.yaml
+    # 保存进每个 checkpoint,并作为部署端的唯一配置来源.
     #
     TrainConfig(
         name="pi05_brainco_56d",
@@ -781,7 +486,7 @@ _CONFIGS = [
             head_camera_key="observation.images.cam_head",
             revo3_eef_joint_hand_to_joint_hand=True,
         ),
-        # ACT trains from scratch -- no pretrained checkpoint.
+        # ACT 从头训练,不加载预训练 checkpoint.
         num_train_steps=40_000,
         batch_size=16,
         num_workers=8,
@@ -796,7 +501,7 @@ _CONFIGS = [
         ),
     ),
     #
-    # Debugging configs.
+    # 调试配置.
     #
     TrainConfig(
         name="debug",
@@ -866,7 +571,7 @@ def cli() -> TrainConfig:
 
 
 def get_config(config_name: str) -> TrainConfig:
-    """Get a config by name."""
+    """按名称获取配置."""
     if config_name not in _CONFIGS_DICT:
         closest = difflib.get_close_matches(config_name, _CONFIGS_DICT.keys(), n=1, cutoff=0.0)
         closest_str = f" Did you mean '{closest[0]}'? " if closest else ""

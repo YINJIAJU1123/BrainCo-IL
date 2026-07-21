@@ -1,3 +1,5 @@
+"""在 jitted 训练步骤之间传递的共享结构化状态."""
+
 from collections.abc import Callable
 from typing import Any
 
@@ -13,6 +15,7 @@ from openpi.shared import array_typing as at
 @at.typecheck
 @struct.dataclass
 class TrainState:
+    """模型图、参数、优化器状态、训练步数和可选 EMA 参数."""
     step: at.Int[at.ArrayLike, ""]
     params: nnx.State
     model_def: nnx.GraphDef[_model.BaseModel]
@@ -25,8 +28,9 @@ class TrainState:
 
 @at.typecheck
 def tree_to_info(tree: at.PyTree, interp_func: Callable[[Any], str] = str) -> str:
-    """Converts a PyTree into a human-readable string for logging. Optionally, `interp_func` can be provided to convert
-    the leaf values to more meaningful strings.
+    """将 PyTree 转为便于日志阅读的字符串.
+
+    可通过 `interp_func` 将叶子值转换为更有意义的描述.
     """
     tree, _ = jax.tree_util.tree_flatten_with_path(tree)
     return "\n".join(f"{jax.tree_util.keystr(path)}: {interp_func(value)}" for path, value in tree)
@@ -34,5 +38,5 @@ def tree_to_info(tree: at.PyTree, interp_func: Callable[[Any], str] = str) -> st
 
 @at.typecheck
 def array_tree_to_info(tree: at.PyTree) -> str:
-    """Converts a PyTree of arrays into a human-readable string for logging."""
+    """将数组 PyTree 转为包含 shape 和 dtype 的日志字符串."""
     return tree_to_info(tree, lambda x: f"{x.shape}@{x.dtype}")

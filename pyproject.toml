@@ -13,7 +13,6 @@ dependencies = [
     "flatbuffers>=24.3.25",
     "flax==0.10.2",
     "fsspec[gcs]>=2024.6.0",
-    "gym-aloha>=0.1.1",
     "imageio>=2.36.1",
     "jax[cuda12]==0.5.3",
     "jaxtyping==0.2.36",
@@ -22,7 +21,6 @@ dependencies = [
     "numpy>=1.22.4,<2.0.0",
     "numpydantic>=1.6.6",
     "opencv-python>=4.10.0.84",
-    "openpi-client",
     "orbax-checkpoint==0.11.13",
     "pillow>=11.0.0",
     "sentencepiece>=0.2.0",
@@ -35,7 +33,6 @@ dependencies = [
     "beartype==0.19.0",
     "chex>=0.1.90",
     "treescope>=0.1.7",
-    "transformers==4.53.2",
     "rich>=14.0.0",
     "polars>=1.30.0",
 ]
@@ -54,31 +51,16 @@ dev = [
     "matplotlib>=3.10.0",
     "pynvml>=12.0.0",
 ]
-rlds = [
-    "dlimp",
-    "tensorflow==2.20.0",
-    "tensorflow-datasets==4.9.9",
-]
-
 [tool.uv]
-# dlimp's 2024 package metadata pins TensorFlow 2.15 even though it only uses
-# stable tf.data APIs. TensorFlow 2.20 is required for compatibility with the
-# protobuf and wrapt versions used by SwanLab.
-override-dependencies = ["tensorflow==2.20.0", "ml-dtypes==0.5.1", "tensorstore==0.1.74"]
 environments = ["sys_platform == 'linux'"]
 
 [tool.uv.sources]
-openpi-client = { workspace = true }
 lerobot = { git = "https://github.com/huggingface/lerobot", rev = "0cf864870cf29f4738d3ade893e6fd13fbd7cdb5" }
-dlimp = { git = "https://github.com/kvablack/dlimp", rev = "ad72ce3a9b414db2185bc0b38461d4101a65477a" }
-
-[tool.uv.workspace]
-members = ["packages/*"]
 
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = ["docker", "third_party", "src/openpi/models_pytorch/transformers_replace/*"]
+extend-exclude = ["third_party"]
 
 [tool.ruff.lint]
 # https://docs.astral.sh/ruff/rules/
@@ -128,20 +110,10 @@ unfixable = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# These modules intentionally defer optional or circular imports until the
-# corresponding runtime path is selected.
-"examples/aloha_real/convert_aloha_data_to_lerobot.py" = ["PLC0415"]
-"examples/brainco/core/__init__.py" = ["PLC0415"]
-"examples/brainco/deploy/main.py" = ["PLC0415"]
-"examples/open_loop_eval.py" = ["PLC0415"]
 "scripts/train.py" = ["E402"]
 "src/openpi/models/act_config.py" = ["PLC0415"]
 "src/openpi/models/pi0_config.py" = ["PLC0415"]
-"src/openpi/models_pytorch/pi0_pytorch.py" = ["PLC0415"]
 "src/openpi/policies/policy_config.py" = ["PLC0415"]
-"src/openpi/training/droid_rlds_dataset.py" = ["PLC0415"]
-"src/openpi/training/misc/polaris_config.py" = ["PLC0415"]
-"src/openpi/training/misc/roboarena_config.py" = ["PLC0415"]
 
 [tool.ruff.lint.isort]
 force-single-line = true
@@ -155,4 +127,4 @@ build-backend = "hatchling.build"
 
 [tool.pytest.ini_options]
 markers = ["manual: should be run manually."]
-testpaths = ["src", "scripts", "packages"]
+testpaths = ["src", "scripts"]

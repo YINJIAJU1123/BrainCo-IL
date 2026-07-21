@@ -1,3 +1,5 @@
+"""train_step 使用的学习率计划与 Optax 参数更新流水线."""
+
 import dataclasses
 from typing import Protocol, runtime_checkable
 
@@ -14,7 +16,7 @@ class LRScheduleConfig(Protocol):
 
 @dataclasses.dataclass(frozen=True)
 class CosineDecaySchedule(LRScheduleConfig):
-    """Cosine decay schedule with warmup."""
+    """带 warmup 的余弦衰减学习率."""
 
     warmup_steps: int = 1_000
     peak_lr: float = 2.5e-5
@@ -22,6 +24,7 @@ class CosineDecaySchedule(LRScheduleConfig):
     decay_lr: float = 2.5e-6
 
     def create(self) -> optax.Schedule:
+        # 从较小的非零值 warmup 到 peak_lr,再平滑衰减到 decay_lr.
         return optax.warmup_cosine_decay_schedule(
             init_value=self.peak_lr / (self.warmup_steps + 1),
             peak_value=self.peak_lr,
@@ -33,7 +36,7 @@ class CosineDecaySchedule(LRScheduleConfig):
 
 @dataclasses.dataclass(frozen=True)
 class RsqrtDecaySchedule(LRScheduleConfig):
-    """Inverse square root decay schedule with warmup."""
+    """带 warmup 的平方根倒数衰减学习率."""
 
     warmup_steps: int = 1_000
     peak_lr: float = 5e-5
@@ -64,12 +67,12 @@ class OptimizerConfig(Protocol):
 
 @dataclasses.dataclass(frozen=True)
 class AdamW(OptimizerConfig):
-    """AdamW optimizer."""
+    """AdamW 优化器."""
 
     b1: float = 0.9
     b2: float = 0.95
     eps: float = 1e-8
-    # Changing this to 0 can cause out-of-memory errors for some reason, so we set it to a negligible value.
+    # 设为 0 在部分环境中可能触发 OOM,因此保留一个可忽略的小值.
     weight_decay: float = 1e-10
     clip_gradient_norm: float = 1.0
 
@@ -82,12 +85,13 @@ class AdamW(OptimizerConfig):
             lr, b1=self.b1, b2=self.b2, eps=self.eps, weight_decay=self.weight_decay, mask=weight_decay_mask
         )
 
+        # 顺序很重要:先裁剪原始梯度树,再计算 Adam moments 和权重衰减更新.
         return optax.chain(optax.clip_by_global_norm(self.clip_gradient_norm), tx)
 
 
 @dataclasses.dataclass(frozen=True)
 class SGD(OptimizerConfig):
-    """SGD optimizer."""
+    """SGD 优化器."""
 
     lr: float = 5e-5
     momentum: float = 0.9
@@ -105,5 +109,6 @@ class SGD(OptimizerConfig):
 def create_optimizer(
     optimizer: OptimizerConfig, lr_schedule: LRScheduleConfig, weight_decay_mask: at.PyTree | None = None
 ) -> optax.GradientTransformation:
+    """实例化 TrainConfig 选择的学习率计划和优化器."""
     lr = lr_schedule.create()
     return optimizer.create(lr, weight_decay_mask=weight_decay_mask)

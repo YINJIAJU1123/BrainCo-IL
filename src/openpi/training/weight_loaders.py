@@ -1,3 +1,9 @@
+"""第一个训练步骤前的初始参数加载逻辑.
+
+WeightLoader 用于初始化新的 TrainState.恢复中断训练时不会调用它,
+而是由 checkpoints.py 恢复完整训练状态.
+"""
+
 import dataclasses
 import logging
 import re
@@ -16,68 +22,68 @@ logger = logging.getLogger(__name__)
 @runtime_checkable
 class WeightLoader(Protocol):
     def load(self, params: at.Params) -> at.Params:
-        """Loads the model weights.
+        """加载模型权重.
 
-        Args:
-            params: Parameters of the model. This is a nested structure of array-like objects that
-                represent the model's parameters.
+        参数:
+            params:模型参数,由表示各层参数的数组对象组成的嵌套结构.
 
-        Returns:
-            Loaded parameters. The structure must be identical to `params`. If returning a subset of
-            the parameters the loader must merge the loaded parameters with `params`.
+        返回:
+            加载后的参数,结构必须与 `params` 一致.如果只加载参数子集,
+            loader 必须将其与 `params` 合并后返回.
         """
 
 
 @dataclasses.dataclass(frozen=True)
 class NoOpWeightLoader(WeightLoader):
+    """保留随机初始化,供 ACT 从头训练等场景使用."""
     def load(self, params: at.Params) -> at.Params:
         return params
 
 
 @dataclasses.dataclass(frozen=True)
 class CheckpointWeightLoader(WeightLoader):
-    """Loads an entire set of weights from a checkpoint.
+    """从 checkpoint 加载完整权重.
 
-    Compatible with:
-      trained checkpoints:
-        example: "./checkpoints/<config>/<exp>/<step>/params"
-      released checkpoints:
-        example: "gs://openpi-assets/checkpoints/<model>/params"
+    支持:
+      训练生成的 checkpoint:
+        示例:"./checkpoints/<config>/<exp>/<step>/params"
+      发布的 checkpoint:
+        示例:"gs://openpi-assets/checkpoints/<model>/params"
     """
 
     params_path: str
 
     def load(self, params: at.Params) -> at.Params:
-        # We are loading np.ndarray and relying on the training code to properly convert and shard the params.
+        # 先加载为 np.ndarray,再由训练初始化逻辑转换并按目标布局分片.
         loaded_params = _model.restore_params(download.maybe_download(self.params_path), restore_type=np.ndarray)
-        # Add all missing LoRA weights.
+        # 补回 checkpoint 中不存在的 LoRA 参数.
         return _merge_params(loaded_params, params, missing_regex=".*lora.*")
 
 
 @dataclasses.dataclass(frozen=True)
 class PartialCheckpointWeightLoader(WeightLoader):
-    """Loads weights from a checkpoint, skipping layers with shape mismatches.
+    """从 checkpoint 加载权重,并跳过允许 shape 不匹配的层.
 
-    This is useful when loading pretrained weights into a model with different action dimensions.
-    For example, loading 32-dim weights into a 58-dim model will skip action_in_proj and
-    action_out_proj layers while loading all other compatible layers.
+    适用于目标模型 action_dim 与预训练模型不同的情况.例如将 32 维权重
+    加载到 58 维模型时,可以跳过 action_in_proj 和 action_out_proj,
+    同时加载其余 shape 兼容的层.
 
-    Compatible with:
-      trained checkpoints:
-        example: "./checkpoints/<config>/<exp>/<step>/params"
-      released checkpoints:
-        example: "gs://openpi-assets/checkpoints/<model>/params"
+    支持:
+      训练生成的 checkpoint:
+        示例:"./checkpoints/<config>/<exp>/<step>/params"
+      发布的 checkpoint:
+        示例:"gs://openpi-assets/checkpoints/<model>/params"
     """
 
     params_path: str
-    # Regex pattern for layers to skip if shapes don't match (default: skip action projection layers)
+    # shape 不匹配时允许跳过的层名正则,默认跳过动作/状态投影层.
     skip_on_mismatch_regex: str = ".*(action_in_proj|action_out_proj|state_proj).*"
 
     def load(self, params: at.Params) -> at.Params:
-        # We are loading np.ndarray and relying on the training code to properly convert and shard the params.
+        # 先加载为 np.ndarray,再由训练初始化逻辑转换并按目标布局分片.
         loaded_params = _model.restore_params(download.maybe_download(self.params_path), restore_type=np.ndarray)
 
-        # Merge params, allowing shape mismatches for specified layers
+        # 合并参数,并允许指定层存在 shape 不匹配.
         flat_ref = flax.traverse_util.flatten_dict(params, sep="/")
         flat_loaded = flax.traverse_util.flatten_dict(loaded_params, sep="/")
 
@@ -85,28 +91,29 @@ class PartialCheckpointWeightLoader(WeightLoader):
         result = {}
         skipped_keys = []
 
-        # Take all weights that are compatible (same shape or allowed to skip)
+        # 加载 shape 兼容的预训练叶子;对于明确允许发生维度变化的
+        # action/state 投影层,保留目标模型自身的初始化.
         for k, v in flat_loaded.items():
             if k in flat_ref:
                 ref_shape = getattr(flat_ref[k], "shape", None)
                 loaded_shape = getattr(v, "shape", None)
 
-                # Check if shapes match or if we should skip this layer
+                # 检查 shape 是否匹配,或当前层是否允许跳过.
                 if ref_shape == loaded_shape:
-                    # Shapes match, load the weight
+                    # shape 匹配,加载 checkpoint 权重.
                     result[k] = v.astype(flat_ref[k].dtype) if v.dtype != flat_ref[k].dtype else v
                 elif skip_pattern.fullmatch(k):
-                    # Shapes don't match but layer is in skip list - keep reference value
+                    # shape 不匹配但位于跳过列表,保留目标模型初始值.
                     skipped_keys.append(k)
                     logger.info(f"Skipping layer {k}: shape mismatch ({loaded_shape} -> {ref_shape})")
                 else:
-                    # Shapes don't match and not in skip list - this is an error
+                    # shape 不匹配且不允许跳过,视为配置或 checkpoint 错误.
                     raise ValueError(
                         f"Shape mismatch at {k}: expected {ref_shape}, got {loaded_shape}. "
                         f"Layer does not match skip_on_mismatch_regex pattern."
                     )
 
-        # Add all missing LoRA weights and skipped layers from reference
+        # 从目标模型补回缺失的 LoRA 参数和被跳过层.
         lora_pattern = re.compile(".*lora.*")
         for k in flat_ref:
             if k not in result and (lora_pattern.fullmatch(k) or k in skipped_keys):
@@ -123,10 +130,10 @@ class PartialCheckpointWeightLoader(WeightLoader):
 
 @dataclasses.dataclass(frozen=True)
 class PaliGemmaWeightLoader(WeightLoader):
-    """Loads weights from the official PaliGemma checkpoint.
+    """从官方 PaliGemma checkpoint 加载权重.
 
-    This will overwrite existing weights with similar names while keeping all extra weights intact.
-    This allows us to support the action expert which is used by the Pi0 model.
+    同名权重会被覆盖,目标模型额外参数保持不变,
+    因而可以保留 PI0 使用的 action expert 参数.
     """
 
     def load(self, params: at.Params) -> at.Params:
@@ -136,25 +143,25 @@ class PaliGemmaWeightLoader(WeightLoader):
         with path.open("rb") as f:
             flat_params = dict(np.load(f, allow_pickle=False))
         loaded_params = {"PaliGemma": flax.traverse_util.unflatten_dict(flat_params, sep="/")["params"]}
-        # Add all missing weights.
+        # 从目标模型补回 checkpoint 中缺失的全部权重.
         return _merge_params(loaded_params, params, missing_regex=".*")
 
 
 def _merge_params(loaded_params: at.Params, params: at.Params, *, missing_regex: str) -> at.Params:
-    """Merges the loaded parameters with the reference parameters.
+    """将加载参数与目标模型参考参数合并.
 
-    Args:
-        loaded_params: The parameters to merge.
-        params: The reference parameters.
-        missing_regex: A regex pattern for all missing keys that should be merged from the reference parameters.
+    参数:
+        loaded_params:从 checkpoint 加载的参数.
+        params:目标模型参考参数.
+        missing_regex:需要从参考参数补回的缺失键正则.
 
-    Returns:
-        A new dictionary with the merged parameters.
+    返回:
+        合并后的新参数字典.
     """
     flat_ref = flax.traverse_util.flatten_dict(params, sep="/")
     flat_loaded = flax.traverse_util.flatten_dict(loaded_params, sep="/")
 
-    # First, take all weights that are a subset of the reference weights.
+    # 首先接收所有存在于目标参数树中的加载权重.
     result = {}
     for k, v in flat_loaded.items():
         if k in flat_ref:
@@ -162,7 +169,7 @@ def _merge_params(loaded_params: at.Params, params: at.Params, *, missing_regex:
 
     flat_loaded.clear()
 
-    # Then, merge any missing weights as defined by the missing regex.
+    # 然后按 missing_regex 从目标参数树补回缺失权重.
     pattern = re.compile(missing_regex)
     for k in {k for k in flat_ref if pattern.fullmatch(k)}:
         if k not in result:

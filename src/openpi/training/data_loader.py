@@ -1,9 +1,19 @@
+"""从 LeRobot 到 JAX 的训练输入流水线.
+
+本模块负责框架边界:
+  LeRobot/PyTorch worker 在 CPU 上解码并组装 batch;
+  BrainCo/model transforms 将单条样本转换为模型输入约定;
+  最后将 batch 转为带分片布局的 JAX 数组,交给编译后的训练步骤.
+
+机器人语义保留在 config.py 和 brainco_policy.py 中,不写入通用 DataLoader.
+"""
+
 from collections.abc import Iterator, Sequence
 import logging
 import multiprocessing
 import os
 import typing
-from typing import Literal, Protocol, SupportsIndex, TypeVar
+from typing import Protocol, SupportsIndex, TypeVar
 
 import jax
 import jax.numpy as jnp
@@ -13,14 +23,13 @@ import torch
 
 import openpi.models.model as _model
 import openpi.training.config as _config
-from openpi.training.droid_rlds_dataset import DroidRldsDataset
 import openpi.transforms as _transforms
 
 T_co = TypeVar("T_co", covariant=True)
 
 
 def _patch_torch_stack_for_datasets_column() -> None:
-    """Make older LeRobot code work with newer HuggingFace datasets Column objects."""
+    """兼容旧版 LeRobot 与新版 HuggingFace datasets 的 Column 对象."""
     if getattr(torch.stack, "_openpi_datasets_column_compat", False):
         return
 
@@ -42,13 +51,13 @@ _patch_torch_stack_for_datasets_column()
 
 
 def _create_lerobot_dataset_compat(*args, **kwargs) -> lerobot_dataset.LeRobotDataset:
-    """Create a LeRobotDataset with compatibility patches already installed."""
+    """在安装兼容补丁后创建 LeRobotDataset."""
     kwargs.setdefault("video_backend", os.environ.get("OPENPI_LEROBOT_VIDEO_BACKEND", "pyav"))
     return lerobot_dataset.LeRobotDataset(*args, **kwargs)
 
 
 class Dataset(Protocol[T_co]):
-    """Interface for a dataset with random access."""
+    """支持随机访问的数据集接口."""
 
     def __getitem__(self, index: SupportsIndex) -> T_co:
         raise NotImplementedError("Subclasses of Dataset should implement __getitem__.")
@@ -57,21 +66,11 @@ class Dataset(Protocol[T_co]):
         raise NotImplementedError("Subclasses of Dataset should implement __len__.")
 
 
-class IterableDataset(Protocol[T_co]):
-    """Interface for an iterable dataset."""
-
-    def __iter__(self) -> Iterator[T_co]:
-        raise NotImplementedError("Subclasses of IterableDataset should implement __iter__.")
-
-    def __len__(self) -> int:
-        raise NotImplementedError("Subclasses of Dataset should implement __len__.")
-
-
 class DataLoader(Protocol[T_co]):
-    """Interface for a data loader."""
+    """数据加载器接口."""
 
     def data_config(self) -> _config.DataConfig:
-        """Get the data config for this data loader."""
+        """返回当前 DataLoader 使用的数据配置."""
         raise NotImplementedError("Subclasses of DataLoader should implement data_config.")
 
     def __iter__(self) -> Iterator[T_co]:
@@ -79,46 +78,13 @@ class DataLoader(Protocol[T_co]):
 
 
 class TransformedDataset(Dataset[T_co]):
+    """在组装 batch 前,对单条样本执行配置好的 transform 链."""
     def __init__(self, dataset: Dataset, transforms: Sequence[_transforms.DataTransformFn]):
         self._dataset = dataset
         self._transform = _transforms.compose(transforms)
 
     def __getitem__(self, index: SupportsIndex) -> T_co:
         return self._transform(self._dataset[index])
-
-    def __len__(self) -> int:
-        return len(self._dataset)
-
-
-class IterableTransformedDataset(IterableDataset[T_co]):
-    def __init__(
-        self,
-        dataset: IterableDataset,
-        transforms: Sequence[_transforms.DataTransformFn],
-        *,
-        is_batched: bool = False,
-    ):
-        self._dataset = dataset
-        self._transform = _transforms.compose(transforms)
-        self._is_batched = is_batched
-
-    def __iter__(self):
-        for sample in self._dataset:
-            if self._is_batched:
-                # Transforms are designed to be applied to individual samples. So we need to split the batch into
-                # individual samples and apply the transform to each sample individually.
-                batch_size = next(v.shape[0] for v in sample.values())
-
-                # Split batch into individual samples using tree_map
-                individual_samples = [jax.tree.map(lambda x: x[i], sample) for i in range(batch_size)]  # noqa: B023
-
-                # Transform each sample
-                transformed = [self._transform(s) for s in individual_samples]
-
-                # Recombine batch with tree_map
-                yield jax.tree.map(lambda *x: np.stack(x, axis=0), *transformed)
-            else:
-                yield self._transform(sample)
 
     def __len__(self) -> int:
         return len(self._dataset)
@@ -135,7 +101,7 @@ class FakeDataset(Dataset):
         def make_from_spec(spec: jax.ShapeDtypeStruct):
             nonlocal rng
             rng, data_rng = jax.random.split(rng)
-            # Remove the batch dimension.
+            # FakeDataset 生成单样本时去掉临时 batch 维.
             shape = spec.shape[1:]
             if spec.dtype == jnp.float32:
                 return jax.random.uniform(data_rng, shape=shape, minval=-1.0, maxval=1.0)
@@ -156,23 +122,23 @@ class FakeDataset(Dataset):
 
 
 class ConcatLeRobotDataset(Dataset):
-    """Dataset that concatenates multiple LeRobot datasets, using all data from each."""
+    """拼接多个 LeRobot 数据集,并使用每个数据集中的全部样本."""
 
     def __init__(
         self,
         datasets: list[Dataset],
         prompt_transforms: list[_transforms.DataTransformFn] | None = None,
     ):
-        """Create a concatenated multi-dataset.
+        """创建拼接式多数据集.
 
-        Args:
-            datasets: List of LeRobot datasets to concatenate
-            prompt_transforms: Optional list of prompt transforms for each dataset
+        参数:
+            datasets:需要拼接的数据集列表.
+            prompt_transforms:每个数据集可选的 prompt transform.
         """
         self._datasets = datasets
         self._prompt_transforms = prompt_transforms or [lambda x: x] * len(datasets)
 
-        # Compute cumulative lengths for mapping indices to datasets
+        # 计算累计长度,用于将全局索引映射回具体数据集.
         self._dataset_lengths = [len(d) for d in datasets]
         self._cumulative_lengths = np.cumsum([0, *self._dataset_lengths])
         self._total_length = sum(self._dataset_lengths)
@@ -186,13 +152,13 @@ class ConcatLeRobotDataset(Dataset):
     def __getitem__(self, index: SupportsIndex) -> dict:
         idx = index.__index__()
 
-        # Find which dataset this index belongs to
+        # 定位当前全局索引所属的数据集.
         dataset_idx = int(np.searchsorted(self._cumulative_lengths[1:], idx, side="right"))
         local_idx = int(idx - self._cumulative_lengths[dataset_idx])
 
         sample = self._datasets[dataset_idx][local_idx]
 
-        # Apply dataset-specific prompt transform if available
+        # 如果配置了数据集专属 prompt transform,则在这里应用.
         if self._prompt_transforms[dataset_idx] is not None:
             sample = self._prompt_transforms[dataset_idx](sample)
 
@@ -203,7 +169,7 @@ class ConcatLeRobotDataset(Dataset):
 
 
 class MultiLeRobotDataset(Dataset):
-    """Dataset that samples from multiple LeRobot datasets with given weights."""
+    """按给定权重从多个 LeRobot 数据集中采样."""
 
     def __init__(
         self,
@@ -211,12 +177,12 @@ class MultiLeRobotDataset(Dataset):
         weights: list[float],
         prompt_transforms: list[_transforms.DataTransformFn] | None = None,
     ):
-        """Create a multi-dataset sampler.
+        """创建多数据集加权采样器.
 
-        Args:
-            datasets: List of LeRobot datasets to sample from
-            weights: Sampling weights for each dataset (must sum to 1.0)
-            prompt_transforms: Optional list of prompt transforms for each dataset
+        参数:
+            datasets:参与采样的数据集列表.
+            weights:每个数据集的采样权重,总和必须为 1.
+            prompt_transforms:每个数据集可选的 prompt transform.
         """
         if len(datasets) != len(weights):
             raise ValueError(f"Number of datasets ({len(datasets)}) must match number of weights ({len(weights)})")
@@ -228,21 +194,20 @@ class MultiLeRobotDataset(Dataset):
         self._weights = np.array(weights)
         self._prompt_transforms = prompt_transforms or [lambda x: x] * len(datasets)
 
-        # Compute cumulative lengths for mapping indices to datasets
+        # 记录各数据集长度并计算虚拟数据集总长度.
         self._dataset_lengths = [len(d) for d in datasets]
         self._total_length = sum(self._dataset_lengths)
 
-        # Precompute sampling probabilities and create a mapping
+        # 预先构建符合采样权重的虚拟索引映射.
         self._dataset_indices = []
         self._local_indices = []
 
-        # Create index mapping based on weights
-        # We'll create a virtual dataset where indices are distributed according to weights
+        # 根据权重创建索引映射,使虚拟数据集中的索引按权重分布.
         for dataset_idx, (dataset, weight) in enumerate(zip(datasets, weights, strict=False)):
             num_samples = int(self._total_length * weight)
             dataset_len = len(dataset)
 
-            # Generate indices for this dataset (with repetition if needed)
+            # 为当前数据集生成索引;样本不足时允许重复.
             local_idxs = np.random.choice(dataset_len, size=num_samples, replace=True)
 
             self._dataset_indices.extend([dataset_idx] * num_samples)
@@ -260,7 +225,7 @@ class MultiLeRobotDataset(Dataset):
 
         sample = self._datasets[dataset_idx][local_idx]
 
-        # Apply dataset-specific prompt transform if available
+        # 如果存在数据集专属 prompt transform,则在返回前应用.
         if self._prompt_transforms[dataset_idx] is not None:
             sample = self._prompt_transforms[dataset_idx](sample)
 
@@ -273,10 +238,10 @@ class MultiLeRobotDataset(Dataset):
 def create_torch_dataset(
     data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig
 ) -> Dataset:
-    """Create a dataset for training."""
+    """打开 LeRobot 数据集,并按时间戳请求未来 action chunk."""
     repo_id = data_config.repo_id
 
-    # Check if multi-dataset training is enabled
+    # 检查是否启用多数据集训练.
     if data_config.lerobot_datasets:
         multi_dataset_mode = data_config.multi_dataset_mode
         logging.info(
@@ -288,8 +253,10 @@ def create_torch_dataset(
         prompt_transforms = []
 
         for ds_config in data_config.lerobot_datasets:
-            # Create individual dataset
+            # 创建单个 LeRobot 数据集.
             dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(ds_config.repo_id)
+            # LeRobot 根据数据集 FPS,从当前 observation 时刻开始,
+            # 取得 action_horizon 个连续动作目标.
             dataset = _create_lerobot_dataset_compat(
                 ds_config.repo_id,
                 delta_timestamps={
@@ -298,7 +265,7 @@ def create_torch_dataset(
                 },
             )
 
-            # Create prompt transform if needed
+            # 按需创建该数据集对应的 prompt transform.
             prompt_transform = None
             if data_config.prompt_from_task:
                 prompt_transform = _transforms.PromptFromLeRobotTask(dataset_meta.tasks)
@@ -309,20 +276,19 @@ def create_torch_dataset(
 
             logging.info(f"  - {ds_config.repo_id}: weight={ds_config.weight:.2f}, samples={len(dataset)}")
 
-        # Choose dataset type based on mode
+        # 根据模式选择多数据集组合方式.
         if multi_dataset_mode == "concat":
-            # Concatenate mode: use all data from all datasets
+            # concat 模式:使用所有数据集中的全部样本.
             return ConcatLeRobotDataset(datasets, prompt_transforms)
         if multi_dataset_mode == "weighted":
-            # Weighted sampling mode: sample by weights
-            # Validate weights sum to 1.0
+            # weighted 模式:按权重采样,并校验权重和为 1.
             total_weight = sum(weights)
             if not np.isclose(total_weight, 1.0):
                 raise ValueError(f"Dataset weights must sum to 1.0 in weighted mode, got {total_weight}")
             return MultiLeRobotDataset(datasets, weights, prompt_transforms)
         raise ValueError(f"Unknown multi_dataset_mode: {multi_dataset_mode}")
 
-    # Single dataset case (original behavior)
+    # 单数据集路径.
     if repo_id is None:
         raise ValueError("Repo ID is not set. Cannot create dataset.")
     if repo_id == "fake":
@@ -342,26 +308,8 @@ def create_torch_dataset(
     return dataset
 
 
-def create_rlds_dataset(
-    data_config: _config.DataConfig,
-    action_horizon: int,
-    batch_size: int,
-    *,
-    shuffle: bool = False,
-) -> Dataset:
-    # At the moment, we only support DROID for RLDS datasets.
-    return DroidRldsDataset(
-        data_dir=data_config.rlds_data_dir,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        action_chunk_size=action_horizon,
-        action_space=data_config.action_space,
-        datasets=data_config.datasets,
-    )
-
-
 def transform_dataset(dataset: Dataset, data_config: _config.DataConfig, *, skip_norm_stats: bool = False) -> Dataset:
-    """Transform the dataset by applying the data transforms."""
+    """构建与策略推理一致的样本 transform 顺序."""
     norm_stats = {}
     if data_config.repo_id != "fake" and not skip_norm_stats:
         if data_config.norm_stats is None:
@@ -374,40 +322,15 @@ def transform_dataset(dataset: Dataset, data_config: _config.DataConfig, *, skip
     return TransformedDataset(
         dataset,
         [
+            # 原始数据集键 -> BrainCo 通用键.
             *data_config.repack_transforms.inputs,
+            # 关节布局、相机映射,以及可选的 absolute -> delta 动作转换.
             *data_config.data_transforms.inputs,
+            # state/action 归一化必须发生在 padding 和 tokenization 之前.
             _transforms.Normalize(norm_stats, use_quantiles=data_config.use_quantile_norm),
+            # 模型专属的图像缩放、prompt tokenization 和 shape padding.
             *data_config.model_transforms.inputs,
         ],
-    )
-
-
-def transform_iterable_dataset(
-    dataset: IterableDataset,
-    data_config: _config.DataConfig,
-    *,
-    skip_norm_stats: bool = False,
-    is_batched: bool = False,
-) -> IterableDataset:
-    """Transform the dataset by applying the data transforms."""
-    norm_stats = {}
-    if data_config.repo_id != "fake" and not skip_norm_stats:
-        if data_config.norm_stats is None:
-            raise ValueError(
-                "Normalization stats not found. "
-                "Make sure to run `scripts/compute_norm_stats.py --config-name=<your-config>`."
-            )
-        norm_stats = data_config.norm_stats
-
-    return IterableTransformedDataset(
-        dataset,
-        [
-            *data_config.repack_transforms.inputs,
-            *data_config.data_transforms.inputs,
-            _transforms.Normalize(norm_stats, use_quantiles=data_config.use_quantile_norm),
-            *data_config.model_transforms.inputs,
-        ],
-        is_batched=is_batched,
     )
 
 
@@ -418,32 +341,11 @@ def create_data_loader(
     shuffle: bool = False,
     num_batches: int | None = None,
     skip_norm_stats: bool = False,
-    framework: Literal["jax", "pytorch"] = "jax",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
-    """Create a data loader for training.
-
-    Args:
-        config: The training configuration.
-        sharding: The sharding to use for the data loader (JAX only).
-        shuffle: Whether to shuffle the data.
-        num_batches: Determines the number of batches to return.
-        skip_norm_stats: Whether to skip data normalization.
-        framework: The framework to use ("jax" or "pytorch").
-    """
+    """创建以 LeRobot 为数据源的 JAX 训练 DataLoader."""
     data_config = config.data.create(config.assets_dirs, config.model)
     logging.info(f"data_config: {data_config}")
 
-    if data_config.rlds_data_dir is not None:
-        return create_rlds_data_loader(
-            data_config,
-            action_horizon=config.model.action_horizon,
-            batch_size=config.batch_size,
-            sharding=sharding,
-            shuffle=shuffle,
-            num_batches=num_batches,
-            skip_norm_stats=skip_norm_stats,
-            framework=framework,
-        )
     return create_torch_data_loader(
         data_config,
         model_config=config.model,
@@ -455,7 +357,6 @@ def create_data_loader(
         num_workers=config.num_workers,
         seed=config.seed,
         skip_norm_stats=skip_norm_stats,
-        framework=framework,
     )
 
 
@@ -471,106 +372,42 @@ def create_torch_data_loader(
     num_batches: int | None = None,
     num_workers: int = 0,
     seed: int = 0,
-    framework: str = "jax",
 ) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
-    """Create a data loader for training.
+    """创建训练 DataLoader.
 
-    Args:
-        data_config: The data configuration.
-        action_horizon: The action horizon.
-        batch_size: The batch size.
-        sharding: The sharding to use for the data loader. If None, the data loader will
-            use a single device sharding.
-        skip_norm_stats: Whether to skip data normalization.
-        shuffle: Whether to shuffle the data.
-        num_batches: Determines the number of batches to return. If the number exceeds the
-            number of batches in the dataset, the data loader will loop over the dataset.
-            If not provided, will iterate over the dataset indefinitely.
-        num_workers: The number of worker processes to use. If zero, the data loader will
-            execute in the main process.
-        seed: The seed to use for shuffling the data.
+    参数:
+        data_config:数据配置.
+        action_horizon:动作序列长度.
+        batch_size:全局 batch 大小.
+        sharding:DataLoader 使用的设备分片;为空时使用默认单设备分片.
+        skip_norm_stats:是否跳过数据归一化.
+        shuffle:是否打乱数据.
+        num_batches:最多返回的 batch 数;超过单轮数据量时会循环数据集,
+            未设置时无限迭代.
+        num_workers:DataLoader worker 进程数;为 0 时在主进程执行.
+        seed:打乱数据使用的随机种子.
     """
     dataset = create_torch_dataset(data_config, action_horizon, model_config)
     dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
 
-    # Use TorchDataLoader for both frameworks
-    # For PyTorch DDP, create DistributedSampler and divide batch size by world size
-    # For JAX, divide by process count
-    sampler = None
-    if framework == "pytorch":
-        if torch.distributed.is_initialized():
-            sampler = torch.utils.data.distributed.DistributedSampler(
-                dataset,
-                num_replicas=torch.distributed.get_world_size(),
-                rank=torch.distributed.get_rank(),
-                shuffle=shuffle,
-                drop_last=True,
-            )
-            local_batch_size = batch_size // torch.distributed.get_world_size()
-        else:
-            local_batch_size = batch_size
-    else:
-        local_batch_size = batch_size // jax.process_count()
+    local_batch_size = batch_size // jax.process_count()
 
     logging.info(f"local_batch_size: {local_batch_size}")
     data_loader = TorchDataLoader(
         dataset,
         local_batch_size=local_batch_size,
-        sharding=None if framework == "pytorch" else sharding,
-        shuffle=(sampler is None and shuffle),  # Don't shuffle if using sampler
-        sampler=sampler,
+        sharding=sharding,
+        shuffle=shuffle,
         num_batches=num_batches,
         num_workers=num_workers,
         seed=seed,
-        framework=framework,
-    )
-
-    return DataLoaderImpl(data_config, data_loader)
-
-
-def create_rlds_data_loader(
-    data_config: _config.DataConfig,
-    action_horizon: int,
-    batch_size: int,
-    *,
-    sharding: jax.sharding.Sharding | None = None,
-    skip_norm_stats: bool = False,
-    shuffle: bool = False,
-    num_batches: int | None = None,
-    framework: str = "jax",
-) -> DataLoader[tuple[_model.Observation, _model.Actions]]:
-    """Create an RLDS data loader for training.
-
-    Note: This data loader requires some extra dependencies -- see examples/droid/README_train.md
-
-    Args:
-        data_config: The data configuration.
-        action_horizon: The action horizon.
-        batch_size: The batch size.
-        sharding: The sharding to use for the data loader. If None, the data loader will
-            use a single device sharding.
-        skip_norm_stats: Whether to skip data normalization.
-        shuffle: Whether to shuffle the data.
-        num_batches: Determines the number of batches to return. If the number exceeds the
-            number of batches in the dataset, the data loader will loop over the dataset.
-            If not provided, will iterate over the dataset indefinitely.
-    """
-    if framework == "pytorch":
-        raise NotImplementedError("PyTorch RLDS data loader is not supported yet")
-    dataset = create_rlds_dataset(data_config, action_horizon, batch_size, shuffle=shuffle)
-    dataset = transform_iterable_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats, is_batched=True)
-
-    data_loader = RLDSDataLoader(
-        dataset,
-        sharding=sharding,
-        num_batches=num_batches,
     )
 
     return DataLoaderImpl(data_config, data_loader)
 
 
 class TorchDataLoader:
-    """Torch data loader implementation."""
+    """先在 CPU 上用 PyTorch 组装 batch,再显式放置到 JAX 设备."""
 
     def __init__(
         self,
@@ -579,26 +416,21 @@ class TorchDataLoader:
         *,
         sharding: jax.sharding.Sharding | None = None,
         shuffle: bool = False,
-        sampler: torch.utils.data.Sampler | None = None,
         num_batches: int | None = None,
         num_workers: int = 0,
         seed: int = 0,
-        framework: str = "jax",
     ):
-        """Create a PyTorch data loader.
+        """创建底层 PyTorch DataLoader.
 
-        Args:
-            dataset: The dataset to load.
-            local_batch_size: The local batch size for each process.
-            sharding: The sharding to use for the data loader.
-            shuffle: Whether to shuffle the data.
-            num_batches: If provided, determines the number of returned batches. If the
-                number is larger than the number of batches in the dataset, the data loader
-                will loop over the dataset. If not provided, will iterate over the dataset
-                indefinitely.
-            num_workers: The number of worker processes to use. If zero, the data loader will
-                execute in the main process.
-            seed: The seed to use for shuffling the data.
+        参数:
+            dataset:待加载的数据集.
+            local_batch_size:每个本地进程的 batch 大小.
+            sharding:目标 JAX 设备分片.
+            shuffle:是否打乱数据.
+            num_batches:最多返回的 batch 数;超出单轮数据量时循环数据集,
+                未设置时无限迭代.
+            num_workers:数据加载 worker 进程数;为 0 时在主进程执行.
+            seed:打乱数据使用的随机种子.
         """
         if jax.process_count() > 1:
             raise NotImplementedError("Data loading with multiple processes is not supported.")
@@ -606,10 +438,8 @@ class TorchDataLoader:
         if len(dataset) < local_batch_size:
             raise ValueError(f"Local batch size ({local_batch_size}) is larger than the dataset size ({len(dataset)}).")
 
-        # Store sharding - None for PyTorch, JAX sharding for JAX
         self._sharding = sharding
-        if sharding is None and framework == "jax":
-            # Use data parallel sharding by default for JAX only.
+        if sharding is None:
             self._sharding = jax.sharding.NamedSharding(
                 jax.sharding.Mesh(jax.devices(), ("B",)),
                 jax.sharding.PartitionSpec("B"),
@@ -625,8 +455,7 @@ class TorchDataLoader:
         self._data_loader = torch.utils.data.DataLoader(
             typing.cast(torch.utils.data.Dataset, dataset),
             batch_size=local_batch_size,
-            shuffle=(sampler is None and shuffle),  # Don't shuffle if using sampler
-            sampler=sampler,
+            shuffle=shuffle,
             num_workers=num_workers,
             multiprocessing_context=mp_context,
             persistent_workers=num_workers > 0,
@@ -650,76 +479,29 @@ class TorchDataLoader:
                 try:
                     batch = next(data_iter)
                 except StopIteration:
-                    break  # We've exhausted the dataset. Create a new iterator and start over.
+                    break  # 当前轮数据已耗尽,重新创建迭代器并继续.
                 num_items += 1
-                # For JAX, convert to sharded arrays; for PyTorch, return torch tensors
-                if self._sharding is not None:
-                    yield jax.tree.map(lambda x: jax.make_array_from_process_local_data(self._sharding, x), batch)
-                else:
-                    yield jax.tree.map(torch.as_tensor, batch)
+                # 这里是 CPU -> JAX device 的边界.batch 会直接按照
+                # jitted train_step 期望的分片布局创建.
+                yield jax.tree.map(lambda x: jax.make_array_from_process_local_data(self._sharding, x), batch)
 
 
 def _collate_fn(items):
-    """Collate the batch elements into batched numpy arrays."""
-    # Make sure to convert to numpy arrays before stacking since some of the incoming elements
-    # may be JAX arrays.
+    """将多条样本整理为带 batch 维的 NumPy 数组."""
+    # stack 前统一转换为 NumPy,避免输入中混有 JAX 数组.
     return jax.tree.map(lambda *xs: np.stack([np.asarray(x) for x in xs], axis=0), *items)
 
 
 def _worker_init_fn(worker_id: int) -> None:
-    """Tell JAX inside the worker process not to preallocate the GPU memory."""
-    # NOTE: This is called after jax is imported inside the worker process. This
-    # means that this approach will not work for selecting the backend.
+    """禁止 DataLoader worker 中的 JAX 预占 GPU 显存."""
+    # 注意:worker 中此时已经 import jax,因此这里不能用于选择 JAX backend.
     os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "false"
     os.environ["XLA_PYTHON_CLIENT_ALLOCATOR"] = "platform"
 
 
-class RLDSDataLoader:
-    """Shallow wrapper around the DROID data loader to make it compatible with openpi.
-
-    All batching already happens in the DROID dataset, so we don't need to do anything here.
-    """
-
-    def __init__(
-        self,
-        dataset: DroidRldsDataset,
-        *,
-        sharding: jax.sharding.Sharding | None = None,
-        num_batches: int | None = None,
-    ):
-        self._dataset = dataset
-        self._num_batches = num_batches
-
-        if jax.process_count() > 1:
-            raise NotImplementedError("Data loading with multiple processes is not supported.")
-
-        if sharding is None:
-            # Use data parallel sharding by default.
-            sharding = jax.sharding.NamedSharding(
-                jax.sharding.Mesh(jax.devices(), ("B",)),
-                jax.sharding.PartitionSpec("B"),
-            )
-
-        self._sharding = sharding
-        self._num_batches = num_batches
-
-    def __iter__(self):
-        num_items = 0
-        while True:
-            data_iter = iter(self._dataset)
-            while True:
-                if self._num_batches is not None and num_items >= self._num_batches:
-                    return
-                try:
-                    batch = next(data_iter)
-                except StopIteration:
-                    break  # We've exhausted the dataset. Create a new iterator and start over.
-                num_items += 1
-                yield jax.tree.map(lambda x: jax.make_array_from_process_local_data(self._sharding, x), batch)
-
-
 class DataLoaderImpl(DataLoader):
-    def __init__(self, data_config: _config.DataConfig, data_loader: TorchDataLoader | RLDSDataLoader):
+    """向模型无关的训练循环提供结构化 Observation 对象."""
+    def __init__(self, data_config: _config.DataConfig, data_loader: TorchDataLoader):
         self._data_config = data_config
         self._data_loader = data_loader
 

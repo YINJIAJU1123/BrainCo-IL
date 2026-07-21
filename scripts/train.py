@@ -1,3 +1,15 @@
+"""BrainCo PI0/PI0.5 与 ACT 策略的 JAX 训练入口.
+
+主调用链:
+  config.cli -> main -> data_loader.create_data_loader
+             -> init_train_state -> jax.jit(train_step)
+             -> model.compute_loss -> optimizer update
+             -> checkpoints.save_state
+
+模型差异封装在 BaseModel.compute_loss 之后,因此这套训练循环不需要为
+PI0.5 和 ACT 分别编写分支.
+"""
+
 import dataclasses
 import functools
 import logging
@@ -44,7 +56,7 @@ import openpi.training.weight_loaders as _weight_loaders
 
 
 def init_logging():
-    """Custom logging format for better readability."""
+    """设置便于阅读的日志格式."""
     level_mapping = {"DEBUG": "D", "INFO": "I", "WARNING": "W", "ERROR": "E", "CRITICAL": "C"}
 
     class CustomFormatter(logging.Formatter):
@@ -63,6 +75,7 @@ def init_logging():
 
 
 def init_swanlab(config: _config.TrainConfig, *, resuming: bool, enabled: bool = True):
+    """创建或恢复与当前 checkpoint 目录关联的 SwanLab 实验."""
     if not enabled:
         swanlab.init(mode="disabled")
         return
@@ -98,11 +111,11 @@ def init_swanlab(config: _config.TrainConfig, *, resuming: bool, enabled: bool =
 
 
 def _load_weights_and_validate(loader: _weight_loaders.WeightLoader, params_shape: at.Params) -> at.Params:
-    """Loads and validates the weights. Returns a loaded subset of the weights."""
+    """加载并校验权重,返回成功加载的参数子集."""
     loaded_params = loader.load(params_shape)
     at.check_pytree_equality(expected=params_shape, got=loaded_params, check_shapes=True, check_dtypes=True)
 
-    # Remove jax.ShapeDtypeStruct from the loaded params. This makes sure that only the loaded params are returned.
+    # 移除未实际加载的 jax.ShapeDtypeStruct,确保这里只返回真实权重.
     return traverse_util.unflatten_dict(
         {k: v for k, v in traverse_util.flatten_dict(loaded_params).items() if not isinstance(v, jax.ShapeDtypeStruct)}
     )
@@ -112,22 +125,23 @@ def _load_weights_and_validate(loader: _weight_loaders.WeightLoader, params_shap
 def init_train_state(
     config: _config.TrainConfig, init_rng: at.KeyArrayLike, mesh: jax.sharding.Mesh, *, resume: bool
 ) -> tuple[training_utils.TrainState, Any]:
+    """构建模型、优化器状态、初始权重和设备分片布局."""
     tx = _optimizer.create_optimizer(config.optimizer, config.lr_schedule, weight_decay_mask=None)
 
     def init(rng: at.KeyArrayLike, partial_params: at.Params | None = None) -> training_utils.TrainState:
         rng, model_rng = jax.random.split(rng)
-        # initialize the model (and its parameters).
+        # ModelConfig.create 是选择 PI0.5 或 ACT 具体网络的边界.
         model = config.model.create(model_rng)
 
-        # Merge the partial params into the model.
+        # 将预训练权重子集写入刚创建的模型.
         if partial_params is not None:
             graphdef, state = nnx.split(model)
-            # This will produce an error if the partial params are not a subset of the state.
+            # 如果待加载参数不是目标模型参数树的子集,这里会直接报错.
             state.replace_by_pure_dict(partial_params)
             model = nnx.merge(graphdef, state)
 
         params = nnx.state(model)
-        # Convert frozen params to bfloat16.
+        # 冻结参数不参与优化器更新,转成 bfloat16 可以减少设备显存占用.
         params = nnx_utils.state_map(
             params, config.effective_freeze_filter, lambda p: p.replace(p.value.astype(jnp.bfloat16))
         )
@@ -142,6 +156,8 @@ def init_train_state(
             ema_params=None if config.ema_decay is None else params,
         )
 
+    # 在不分配完整模型数组的情况下取得参数树形状,据此生成 FSDP 布局,
+    # 并用目标形状校验预训练权重.
     train_state_shape = jax.eval_shape(init, init_rng)
     state_sharding = sharding.fsdp_sharding(train_state_shape, mesh, log=True)
 
@@ -151,10 +167,11 @@ def init_train_state(
     partial_params = _load_weights_and_validate(config.weight_loader, train_state_shape.params.to_pure_dict())
     replicated_sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec())
 
-    # Initialize the train state and mix in the partial params.
+    # 编译初始化过程,让参数直接按最终分片方式创建到设备上,
+    # 避免先在主机侧构造一份完整副本.
     train_state = jax.jit(
         init,
-        donate_argnums=(1,),  # donate the partial params buffer.
+        donate_argnums=(1,),  # 允许 JAX 复用预训练参数缓冲区.
         in_shardings=replicated_sharding,
         out_shardings=state_sharding,
     )(init_rng, partial_params)
@@ -169,6 +186,9 @@ def train_step(
     state: training_utils.TrainState,
     batch: tuple[_model.Observation, _model.Actions],
 ) -> tuple[training_utils.TrainState, dict[str, at.Array]]:
+    """执行一次可编译的前向、反向和参数更新."""
+    # NNX 在 TrainState 中分别保存网络结构和参数状态;
+    # 这里重新合并,得到 compute_loss 所需的完整模型对象.
     model = nnx.merge(state.model_def, state.params)
     model.train()
 
@@ -182,15 +202,17 @@ def train_step(
     train_rng = jax.random.fold_in(rng, state.step)
     observation, actions = batch
 
-    # Filter out frozen params.
+    # 只有 TrainConfig 选中的参数参与自动求导.
+    # 全参数训练、LoRA 和仅训练动作接口的差异在这里生效.
     diff_state = nnx.DiffState(0, config.trainable_filter)
     loss, grads = nnx.value_and_grad(loss_fn, argnums=diff_state)(model, train_rng, observation, actions)
 
+    # Optax 将梯度转换为参数更新:梯度裁剪 -> AdamW -> 学习率缩放.
     params = state.params.filter(config.trainable_filter)
     updates, new_opt_state = state.tx.update(grads, state.opt_state, params)
     new_params = optax.apply_updates(params, updates)
 
-    # Update the model in place and return the new full state.
+    # 将更新后的可训练参数写回模型,再生成新的完整参数状态.
     nnx.update(model, new_params)
     new_params = nnx.state(model)
 
@@ -203,7 +225,7 @@ def train_step(
             ),
         )
 
-    # Filter out params that aren't kernels.
+    # 仅保留矩阵类 kernel 参数,用于统计参数范数.
     kernel_params = nnx.state(
         model,
         nnx.All(
@@ -221,6 +243,7 @@ def train_step(
 
 
 def main(config: _config.TrainConfig):
+    """组装训练子系统并运行编译后的训练循环."""
     init_logging()
     logging.info(f"Running on: {platform.node()}")
 
@@ -229,15 +252,22 @@ def main(config: _config.TrainConfig):
             f"Batch size {config.batch_size} must be divisible by the number of devices {jax.device_count()}."
         )
 
+    # 当代码和静态 shape 一致时,跨进程启动复用已编译的 XLA 程序.
     jax.config.update("jax_compilation_cache_dir", str(epath.Path("~/.cache/jax").expanduser()))
 
+    # JAX 显式管理随机数:模型初始化和逐步训练使用从根 seed
+    # 派生出的独立随机 key.
     rng = jax.random.key(config.seed)
     train_rng, init_rng = jax.random.split(rng)
 
+    # 逻辑 mesh 同时表达 batch 数据并行和可选的 FSDP 模型分片;
+    # 数据 batch 与 TrainState 分别使用各自的分片规则.
     mesh = sharding.make_mesh(config.fsdp_devices)
     data_sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec(sharding.DATA_AXIS))
     replicated_sharding = jax.sharding.NamedSharding(mesh, jax.sharding.PartitionSpec())
 
+    # 在监控和模型初始化前先处理 checkpoint 目录,
+    # 让 overwrite/resume 配置错误在昂贵的 GPU 初始化前暴露.
     checkpoint_manager, resuming = _checkpoints.initialize_checkpoint_dir(
         config.checkpoint_dir,
         keep_period=config.keep_period,
@@ -248,6 +278,8 @@ def main(config: _config.TrainConfig):
         _config_io.save_train_config(config, config.checkpoint_dir)
     init_swanlab(config, resuming=resuming, enabled=config.wandb_enabled)
 
+    # DataLoader 在 CPU 上通过 LeRobot/PyTorch 解码并执行配置好的 transforms,
+    # 随后按照 data_sharding 将 batch 创建为设备上的 JAX 数组.
     data_loader = _data_loader.create_data_loader(
         config,
         sharding=data_sharding,
@@ -257,7 +289,7 @@ def main(config: _config.TrainConfig):
     batch = next(data_iter)
     logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
 
-    # Log images from first batch to sanity check.
+    # 记录首个 batch 的图像,快速检查相机顺序和预处理结果.
     try:
         images_to_log = [
             swanlab.Image(np.concatenate([np.array(img[i]) for img in batch[0].images.values()], axis=1))
@@ -267,6 +299,8 @@ def main(config: _config.TrainConfig):
     except Exception as e:
         logging.warning(f"Failed to log images to SwanLab: {e}")
 
+    # 恢复训练时先构建预期的抽象 TrainState 结构,
+    # 再由 Orbax 将参数和优化器的具体数值恢复进去.
     train_state, train_state_sharding = init_train_state(config, init_rng, mesh, resume=resuming)
     jax.block_until_ready(train_state)
     logging.info(f"Initialized train state:\n{training_utils.array_tree_to_info(train_state.params)}")
@@ -274,6 +308,8 @@ def main(config: _config.TrainConfig):
     if resuming:
         train_state = _checkpoints.restore_state(checkpoint_manager, train_state, data_loader)
 
+    # 将完整的前向、反向和优化器更新编译为一个 XLA 程序.
+    # donate_argnums 允许 JAX 原地复用旧 TrainState 的缓冲区.
     ptrain_step = jax.jit(
         functools.partial(train_step, config),
         in_shardings=(replicated_sharding, train_state_sharding, data_sharding),
@@ -291,6 +327,8 @@ def main(config: _config.TrainConfig):
 
     infos = []
     for step in pbar:
+        # mesh 上下文让深层网络可以添加激活值分片约束,
+        # 无需在每一层函数调用中显式传递 mesh.
         with sharding.set_mesh(mesh):
             train_state, info = ptrain_step(train_rng, train_state, batch)
         infos.append(info)
@@ -306,6 +344,8 @@ def main(config: _config.TrainConfig):
         should_save_interval = step % config.save_interval == 0 and step > start_step
         should_save_final = config.save_final_checkpoint and step == config.num_train_steps - 1
         if should_save_interval or should_save_final:
+            # params/ 面向部署;train_state/ 还包含恢复训练所需的
+            # 优化器状态和训练步数.
             _checkpoints.save_state(checkpoint_manager, train_state, data_loader, step)
             checkpoint_manager.wait_until_finished()
             if jax.process_index() == 0:

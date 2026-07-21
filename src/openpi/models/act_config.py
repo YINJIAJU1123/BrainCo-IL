@@ -1,19 +1,16 @@
-"""Config for the Action Chunking Transformer (ACT) model.
+"""Action Chunking Transformer(ACT)模型配置.
 
-ACT (Zhao et al., 2023, "Learning Fine-Grained Bimanual Manipulation with Low-Cost
-Hardware") is a CVAE-style policy that maps a few camera views + the proprioceptive
-state to a *chunk* of future actions.
+ACT(Zhao et al., 2023)是一种 CVAE 风格策略,将多个相机视角和本体状态
+映射为未来动作 chunk.
 
-Unlike pi0 / pi05 it has **no language / VLM component**, so:
-- there is no tokenized prompt (the model transforms must not tokenize for ACT), and
-- it is usually trained *per task* (or with an explicit task-id conditioning), because
-  it cannot disambiguate tasks from a language instruction.
+与 PI0/PI0.5 不同,ACT 不包含语言/VLM 模块,因此:
+- 不存在 tokenized prompt,ACT 的模型 transforms 不能执行语言 tokenization;
+- 通常按单任务训练,或显式加入 task-id 条件,因为它无法通过语言区分任务.
 
-It also trains **from scratch** -- there is no pretrained checkpoint to load, so configs
-should use a no-op weight loader.
+ACT 通常从头训练,不加载预训练 checkpoint,因此配置应使用 NoOpWeightLoader.
 
-This lives alongside Pi0Config as a peer `ModelType`, so switching algorithm is just a
-matter of selecting a different training config name.
+ACTConfig 与 Pi0Config 作为并列 ModelType 接入公共训练接口,
+切换算法只需选择不同模型配置.
 """
 
 import dataclasses
@@ -35,28 +32,28 @@ if TYPE_CHECKING:
 class ACTConfig(_model.BaseModelConfig):
     dtype: str = "float32"
 
-    # Shared BaseModelConfig fields (redefined with ACT defaults).
+    # BaseModelConfig 共享字段,这里使用 ACT 默认值重新定义.
     action_dim: int = 56
-    action_horizon: int = 100  # = action chunk size
-    # ACT has no language input; max_token_len is unused but kept for interface parity.
+    action_horizon: int = 100  # 即 action chunk size.
+    # ACT 没有语言输入;max_token_len 不使用,仅为保持公共接口一致.
     max_token_len: int = 1
 
-    # Transformer hyperparameters.
+    # Transformer 超参数.
     hidden_dim: int = 512
     num_heads: int = 8
     dim_feedforward: int = 3200
     num_encoder_layers: int = 4
     num_decoder_layers: int = 7
-    # Number of layers in the CVAE "style" encoder (over the action chunk).
+    # 对 action chunk 编码的 CVAE style encoder 层数.
     num_cvae_layers: int = 4
     dropout: float = 0.1
 
-    # CVAE latent.
+    # CVAE 隐变量配置.
     latent_dim: int = 32
     kl_weight: float = 10.0
 
-    # Vision backbone. Scaffold ships a from-scratch ResNet-18-style trunk implemented in
-    # NNX. Production may want to swap in an ImageNet-pretrained ResNet-18.
+    # 视觉 backbone.当前提供 NNX 实现的随机初始化 ResNet-18 风格主干;
+    # 生产训练可替换为 ImageNet 预训练 ResNet-18.
     vision_backbone: str = "resnet18"
 
     @property
@@ -66,6 +63,7 @@ class ACTConfig(_model.BaseModelConfig):
 
     @override
     def create(self, rng: at.KeyArrayLike) -> "ACT":
+        """通过与 PI0.5 相同的 BaseModel 接口实例化 ACT."""
         from openpi.models.act import ACT
 
         return ACT(self, rngs=nnx.Rngs(rng))
@@ -76,7 +74,7 @@ class ACTConfig(_model.BaseModelConfig):
         image_mask_spec = jax.ShapeDtypeStruct([batch_size], jnp.bool_)
 
         with at.disable_typechecking():
-            # Note: no tokenized_prompt -- ACT has no language input.
+            # ACT 没有语言输入,因此不创建 tokenized_prompt.
             observation_spec = _model.Observation(
                 images={
                     "base_0_rgb": image_spec,
@@ -95,5 +93,5 @@ class ACTConfig(_model.BaseModelConfig):
         return observation_spec, action_spec
 
     def get_freeze_filter(self) -> nnx.filterlib.Filter:
-        """ACT trains end-to-end from scratch; nothing is frozen."""
+        """ACT 从头进行端到端训练,不冻结任何参数."""
         return nnx.Nothing

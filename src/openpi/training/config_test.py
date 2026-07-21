@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from openpi.models import pi0_config
 from openpi.training import config as _config
@@ -53,6 +54,25 @@ def test_save_final_checkpoint_yaml_round_trip(tmp_path):
     restored = config_io.load_train_config(path)
 
     assert restored.save_final_checkpoint is False
+
+
+def test_removed_fields_in_existing_checkpoint_are_ignored(tmp_path):
+    original = _config.get_config("pi05_brainco_56d")
+    payload = yaml.safe_load(config_io.to_yaml(original))
+    train_fields = payload["train_config"]["fields"]
+    train_fields["pytorch_weight_path"] = None
+    train_fields["pytorch_training_precision"] = "bfloat16"
+    data_fields = train_fields["data"]["fields"]["base_config"]["fields"]
+    data_fields["rlds_data_dir"] = None
+    data_fields["action_space"] = None
+    data_fields["datasets"] = []
+
+    path = tmp_path / "train_config.yaml"
+    path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
+    restored = config_io.load_train_config(path)
+
+    assert restored.name == original.name
+    assert restored.model.action_dim == original.model.action_dim
 
 
 @pytest.mark.parametrize("template_path", sorted(_TEMPLATE_DIR.glob("*.yaml")), ids=lambda path: path.stem)

@@ -1,3 +1,10 @@
+"""训练与策略推理共享的可组合样本 transforms.
+
+训练依次执行 repack -> robot transforms -> normalize -> model transforms.
+推理输入执行同一条正向链,并反向执行输出 transforms,
+将模型空间预测恢复为机器人空间的 absolute 关节目标.
+"""
+
 from collections.abc import Callable, Mapping, Sequence
 import dataclasses
 import re
@@ -6,10 +13,10 @@ from typing import Protocol, TypeAlias, TypeVar, runtime_checkable
 import flax.traverse_util as traverse_util
 import jax
 import numpy as np
-from openpi_client import image_tools
 
 from openpi.models import tokenizer as _tokenizer
 from openpi.shared import array_typing as at
+from openpi.shared import image_tools
 from openpi.shared import normalize as _normalize
 
 DataDict: TypeAlias = at.PyTree
@@ -23,45 +30,44 @@ S = TypeVar("S")
 @runtime_checkable
 class DataTransformFn(Protocol):
     def __call__(self, data: DataDict) -> DataDict:
-        """Apply transformation to the data.
+        """对数据执行变换.
 
-        Args:
-            data: The data to apply the transform to. This is a possibly nested dictionary that contains
-                unbatched data elements. Each leaf is expected to be a numpy array. Using JAX arrays is allowed
-                but not recommended since it may result in extra GPU memory usage inside data loader worker
-                processes.
+        参数:
+            data:待变换数据.它可以是嵌套字典,包含未组 batch 的数据元素.
+                每个叶子应为 NumPy 数组.虽然允许使用 JAX 数组,但不建议这样做,
+                否则可能导致 DataLoader worker 额外占用 GPU 显存.
 
-        Returns:
-            The transformed data. Could be the input `data` that was modified in place, or a new data structure.
+        返回:
+            变换后的数据;可能是原地修改后的 `data`,也可能是新数据结构.
         """
 
 
 @dataclasses.dataclass(frozen=True)
 class Group:
-    """A group of transforms."""
+    """一组输入和输出 transforms."""
 
-    # Transforms that are applied to the model input data.
+    # 按顺序应用于模型输入数据的 transforms.
     inputs: Sequence[DataTransformFn] = ()
 
-    # Transforms that are applied to the model output data.
+    # 按顺序应用于模型输出数据的 transforms.
     outputs: Sequence[DataTransformFn] = ()
 
     def push(self, *, inputs: Sequence[DataTransformFn] = (), outputs: Sequence[DataTransformFn] = ()) -> "Group":
-        """Append transforms to the group and return a new group.
+        """追加 transforms 并返回新的 Group.
 
-        Args:
-            inputs: Appended to the *end* of the current input transforms.
-            outputs: Appended to the *beginning* of the current output transforms.
+        参数:
+            inputs:追加到当前输入 transforms 的末尾.
+            outputs:插入到当前输出 transforms 的开头.
 
-        Returns:
-            A new group with the appended transforms.
+        返回:
+            追加后的新 Group.
         """
         return Group(inputs=(*self.inputs, *inputs), outputs=(*outputs, *self.outputs))
 
 
 @dataclasses.dataclass(frozen=True)
 class CompositeTransform(DataTransformFn):
-    """A composite transform that applies a sequence of transforms in order."""
+    """按顺序执行多个 transforms 的组合变换."""
 
     transforms: Sequence[DataTransformFn]
 
@@ -72,18 +78,18 @@ class CompositeTransform(DataTransformFn):
 
 
 def compose(transforms: Sequence[DataTransformFn]) -> DataTransformFn:
-    """Compose a sequence of transforms into a single transform."""
+    """将 transform 序列组合为一个 transform."""
     return CompositeTransform(transforms)
 
 
 @dataclasses.dataclass(frozen=True)
 class RepackTransform(DataTransformFn):
-    """Repacks an input dictionary into a new dictionary.
+    """将输入字典重排为新的字典结构.
 
-    Repacking is defined using a dictionary where the keys are the new keys and the values
-    are the flattened paths to the old keys. We use '/' as the separator during flattening.
+    配置字典的键表示新键,值表示原字典展平后的路径.
+    展平路径使用 '/' 作为分隔符.
 
-    Example:
+    示例:
     {
         "images": {
             "cam_high": "observation.images.top",
@@ -113,7 +119,7 @@ class InjectDefaultPrompt(DataTransformFn):
 
 @dataclasses.dataclass(frozen=True)
 class DropPrompt(DataTransformFn):
-    """Remove language prompts for models that do not consume language inputs."""
+    """为不使用语言输入的模型移除 prompt."""
 
     def __call__(self, data: DataDict) -> DataDict:
         data.pop("prompt", None)
@@ -123,9 +129,9 @@ class DropPrompt(DataTransformFn):
 @dataclasses.dataclass(frozen=True)
 class Normalize(DataTransformFn):
     norm_stats: at.PyTree[NormStats] | None
-    # If true, will use quantile normalization. Otherwise, normal z-score normalization will be used.
+    # 为 true 时使用分位数归一化,否则使用标准 z-score 归一化.
     use_quantiles: bool = False
-    # If true, will raise an error if any of the keys in the norm stats are not present in the data.
+    # 为 true 时,norm stats 中任意键未出现在数据里都会报错.
     strict: bool = False
 
     def __post_init__(self):
@@ -157,7 +163,7 @@ class Normalize(DataTransformFn):
 @dataclasses.dataclass(frozen=True)
 class Unnormalize(DataTransformFn):
     norm_stats: at.PyTree[NormStats] | None
-    # If true, will use quantile normalization. Otherwise, normal z-score normalization will be used.
+    # 为 true 时使用分位数反归一化,否则使用标准 z-score 反归一化.
     use_quantiles: bool = False
 
     def __post_init__(self):
@@ -168,7 +174,7 @@ class Unnormalize(DataTransformFn):
         if self.norm_stats is None:
             return data
 
-        # Make sure that all the keys in the norm stats are present in the data.
+        # 反归一化时要求 norm stats 中的全部键都存在于数据中.
         return apply_tree(
             data,
             self.norm_stats,
@@ -196,7 +202,10 @@ class ResizeImages(DataTransformFn):
     width: int
 
     def __call__(self, data: DataDict) -> DataDict:
-        data["image"] = {k: image_tools.resize_with_pad(v, self.height, self.width) for k, v in data["image"].items()}
+        data["image"] = {
+            key: image_tools.resize_with_pad_numpy(np.asarray(image), self.height, self.width)
+            for key, image in data["image"].items()
+        }
         return data
 
 
@@ -211,11 +220,10 @@ class SubsampleActions(DataTransformFn):
 
 @dataclasses.dataclass(frozen=True)
 class DeltaActions(DataTransformFn):
-    """Repacks absolute actions into delta action space."""
+    """将 absolute actions 转换到 delta action 空间."""
 
-    # Boolean mask for the action dimensions to be repacked into delta action space. Length
-    # can be smaller than the actual number of dimensions. If None, this transform is a no-op.
-    # See `make_bool_mask` for more details.
+    # 标记需要转换为 delta 的动作维度.mask 长度可以小于实际动作维度;
+    # 为 None 时不执行任何操作.详情参见 `make_bool_mask`.
     mask: Sequence[bool] | None
 
     def __call__(self, data: DataDict) -> DataDict:
@@ -233,11 +241,10 @@ class DeltaActions(DataTransformFn):
 
 @dataclasses.dataclass(frozen=True)
 class AbsoluteActions(DataTransformFn):
-    """Repacks delta actions into absolute action space."""
+    """将 delta actions 恢复到 absolute action 空间."""
 
-    # Boolean mask for the action dimensions to be repacked into absolute action space. Length
-    # can be smaller than the actual number of dimensions. If None, this transform is a no-op.
-    # See `make_bool_mask` for more details.
+    # 标记需要恢复为 absolute 的动作维度.mask 长度可以小于实际动作维度;
+    # 为 None 时不执行任何操作.详情参见 `make_bool_mask`.
     mask: Sequence[bool] | None
 
     def __call__(self, data: DataDict) -> DataDict:
@@ -276,50 +283,10 @@ class TokenizePrompt(DataTransformFn):
 
 
 @dataclasses.dataclass(frozen=True)
-class TokenizeFASTInputs(DataTransformFn):
-    tokenizer: _tokenizer.FASTTokenizer
-
-    def __call__(self, data: DataDict) -> DataDict:
-        if (prompt := data.pop("prompt", None)) is None:
-            raise ValueError("Prompt is required")
-
-        if not isinstance(prompt, str):
-            prompt = prompt.item()
-
-        state, actions = data["state"], data.get("actions")
-        tokens, token_mask, ar_mask, loss_mask = self.tokenizer.tokenize(prompt, state, actions)
-        return {
-            **data,
-            "tokenized_prompt": tokens,
-            "tokenized_prompt_mask": token_mask,
-            "token_ar_mask": ar_mask,
-            "token_loss_mask": loss_mask,
-        }
-
-
-@dataclasses.dataclass(frozen=True)
-class ExtractFASTActions(DataTransformFn):
-    tokenizer: _tokenizer.FASTTokenizer
-    action_horizon: int
-    action_dim: int
-
-    def __call__(self, data: DataDict) -> DataDict:
-        if "actions" not in data:
-            return data
-        # Model outputs are saved in "actions", but for FAST models they represent tokens.
-        tokens = data.pop("actions")
-        actions = self.tokenizer.extract_actions(tokens.astype(np.int32), self.action_horizon, self.action_dim)
-        return {
-            **data,
-            "actions": actions,
-        }
-
-
-@dataclasses.dataclass(frozen=True)
 class PromptFromLeRobotTask(DataTransformFn):
-    """Extracts a prompt from the current LeRobot dataset task."""
+    """从当前 LeRobot 数据集 task 中提取 prompt."""
 
-    # Contains the LeRobot dataset tasks (dataset.meta.tasks).
+    # LeRobot 数据集的 task 映射,即 dataset.meta.tasks.
     tasks: dict[int, str]
 
     def __call__(self, data: DataDict) -> DataDict:
@@ -335,7 +302,7 @@ class PromptFromLeRobotTask(DataTransformFn):
 
 @dataclasses.dataclass(frozen=True)
 class PadStatesAndActions(DataTransformFn):
-    """Zero-pads states and actions to the model action dimension."""
+    """用 0 将 state 和 actions 补齐到模型 action_dim."""
 
     model_action_dim: int
 
@@ -347,42 +314,38 @@ class PadStatesAndActions(DataTransformFn):
 
 
 def flatten_dict(tree: at.PyTree) -> dict:
-    """Flatten a nested dictionary. Uses '/' as the separator."""
+    """展平嵌套字典,使用 '/' 作为路径分隔符."""
     return traverse_util.flatten_dict(tree, sep="/")
 
 
 def unflatten_dict(tree: dict) -> at.PyTree:
-    """Unflatten a flattened dictionary. Assumes that '/' was used as a separator."""
+    """还原已展平字典,假定路径使用 '/' 作为分隔符."""
     return traverse_util.unflatten_dict(tree, sep="/")
 
 
 def transform_dict(patterns: Mapping[str, str | None], tree: at.PyTree) -> at.PyTree:
-    """Transform the structure of a nested dictionary using a set of patterns.
+    """使用一组 pattern 变换嵌套字典结构.
 
-    The transformation is defined using the `patterns` dictionary. The keys are the
-    input keys that should be matched and the values are the new names inside the output
-    dictionary. If the value is None, the input key is removed.
+    `patterns` 的键表示需要匹配的输入路径,值表示输出字典中的新路径;
+    值为 None 时删除该输入键.
 
-    Both keys and values should represent flattened paths using '/' as the separator.
-    Keys can be regular expressions and values can include backreferences to the
-    matched groups (see `re.sub` for more details). Note that the regular expression
-    must match the entire key.
+    键和值都应使用以 '/' 分隔的展平路径.键可以是正则表达式,
+    值可以引用匹配分组,详情参见 `re.sub`.正则必须匹配完整路径.
 
-    The order inside the `patterns` dictionary is important. Only the first pattern that
-    matches the input key will be used.
+    `patterns` 的顺序会影响结果,每个输入键只使用首个匹配 pattern.
 
-    See unit tests for more examples.
+    更多示例参见单元测试.
 
-    Args:
-        patterns: A mapping from old keys to new keys.
-        tree: The nested dictionary to transform.
+    参数:
+        patterns:旧路径到新路径的映射.
+        tree:待变换的嵌套字典.
 
-    Returns:
-        The transformed nested dictionary.
+    返回:
+        变换后的嵌套字典.
     """
     data = flatten_dict(tree)
 
-    # Compile the patterns.
+    # 预编译全部正则 pattern.
     compiled = {re.compile(k): v for k, v in patterns.items()}
 
     output = {}
@@ -392,7 +355,7 @@ def transform_dict(patterns: Mapping[str, str | None], tree: at.PyTree) -> at.Py
                 new_k = pattern.sub(repl, k, count=1) if repl is not None else None
                 break
         else:
-            # Use the original key if no match is found.
+            # 没有 pattern 匹配时保留原键.
             new_k = k
 
         if new_k is not None:
@@ -400,7 +363,7 @@ def transform_dict(patterns: Mapping[str, str | None], tree: at.PyTree) -> at.Py
                 raise ValueError(f"Key '{new_k}' already exists in output")
             output[new_k] = data[k]
 
-    # Validate the output structure to make sure that it can be unflattened.
+    # 校验输出路径,确保可以无歧义地还原为嵌套结构.
     names = sorted(output)
     for i in range(len(names) - 1):
         name, next_name = names[i : i + 2]
@@ -430,7 +393,7 @@ def apply_tree(
 
 
 def pad_to_dim(x: np.ndarray, target_dim: int, axis: int = -1, value: float = 0.0) -> np.ndarray:
-    """Pad an array to the target dimension with zeros along the specified axis."""
+    """沿指定轴将数组补齐到目标维度."""
     current_dim = x.shape[axis]
     if current_dim < target_dim:
         pad_width = [(0, 0)] * len(x.shape)
@@ -440,17 +403,17 @@ def pad_to_dim(x: np.ndarray, target_dim: int, axis: int = -1, value: float = 0.
 
 
 def make_bool_mask(*dims: int) -> tuple[bool, ...]:
-    """Make a boolean mask for the given dimensions.
+    """根据维度描述生成布尔 mask.
 
-    Example:
+    示例:
         make_bool_mask(2, -2, 2) == (True, True, False, False, True, True)
         make_bool_mask(2, 0, 2) == (True, True, True, True)
 
-    Args:
-        dims: The dimensions to make the mask for.
+    参数:
+        dims:正数表示生成对应数量的 True,负数表示生成对应数量的 False.
 
-    Returns:
-        A tuple of booleans.
+    返回:
+        布尔值 tuple.
     """
     result = []
     for dim in dims:

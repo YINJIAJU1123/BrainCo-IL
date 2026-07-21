@@ -91,7 +91,6 @@ def create_policy(
         repack_transforms=transforms.Group(inputs=(ValidateRawImages(),)),
         sample_kwargs=_sample_kwargs(train_config, opts),
         default_prompt=str(opts.get("default_prompt", "") or "") or None,
-        pytorch_device=str(opts.get("device", "") or "") or None,
     )
 
 

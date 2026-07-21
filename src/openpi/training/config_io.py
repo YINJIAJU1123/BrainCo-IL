@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import importlib
+import inspect
 import logging
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,13 @@ LOGGER = logging.getLogger(__name__)
 TRAIN_CONFIG_YAML = "train_config.yaml"
 CONFIG_SCHEMA_VERSION = 1
 _UNSUPPORTED = object()
+_REMOVED_FIELDS = {
+    "action_space",
+    "datasets",
+    "pytorch_training_precision",
+    "pytorch_weight_path",
+    "rlds_data_dir",
+}
 
 
 def save_train_config(config: training_config.TrainConfig, directory: str | Path) -> Path:
@@ -136,7 +144,16 @@ def _from_plain(value: Any) -> Any:
             raise RuntimeError(f"serialized class is not a dataclass: {class_name}")
         if not isinstance(fields, dict):
             raise RuntimeError(f"serialized fields for {class_name} must be a mapping")
-        kwargs = {str(key): _from_plain(item) for key, item in fields.items()}
+        accepted_fields = set(inspect.signature(cls).parameters)
+        unknown_fields = sorted(set(fields) - accepted_fields)
+        if unknown_fields:
+            log = LOGGER.info if set(unknown_fields).issubset(_REMOVED_FIELDS) else LOGGER.warning
+            log("Ignoring removed or unknown fields for %s: %s", class_name, ", ".join(unknown_fields))
+        kwargs = {
+            str(key): _from_plain(item)
+            for key, item in fields.items()
+            if str(key) in accepted_fields
+        }
         return cls(**kwargs)
     return {key: _from_plain(item) for key, item in value.items()}
 
