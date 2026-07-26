@@ -45,7 +45,49 @@ prompt + 当前 state ─> 离散化/tokenizer ─> tokens ─┤
 
 代码入口是 [`Pi0`](../../src/openpi/models/pi0.py)。
 
-## 3. 图像如何进入 VLM
+## 3. Prefix 和 suffix 是什么
+
+- **prefix（前缀）**：放在逻辑序列前面的条件信息。
+- **suffix（后缀）**：放在逻辑序列后面、需要根据条件不断修正的动作信息。
+
+在 PI0.5 中可以理解为：
+
+```text
+[ 三路图像 + prompt + 当前 state ] [ noisy action chunk ]
+└────────── prefix ──────────┘ └────── suffix ──────┘
+```
+
+它们不是普通字符串的前后缀，而是 Transformer 逻辑序列中的两个区段：
+
+```text
+prefix：题目和已知条件
+suffix：正在填写和修改的答案
+```
+
+具体到机器人：
+
+```text
+prefix
+├─ 三路图像 tokens：现在看到了什么
+├─ prompt tokens：任务要求做什么
+└─ state tokens：机器人当前在哪里
+
+suffix
+└─ H 个 action tokens：未来 H 步动作目前应该如何修正
+```
+
+suffix 的原始数据是带噪 action chunk，经 `action_in_proj` 后才成为 Action Expert 使用的 action tokens。flow timestep 也会影响 Action Expert，但 PI0.5 通过 adaRMS 注入 timestep，它不是一个普通 suffix token。
+
+两部分最重要的 attention 关系是：
+
+```text
+Prefix 看到：Prefix
+Suffix 看到：Prefix + Suffix
+```
+
+也就是说，Action Expert 可以根据图像、任务和当前状态修正动作；VLM prefix 不会反过来读取 noisy action，从而避免条件信息被噪声动作干扰。
+
+## 4. 图像如何进入 VLM
 
 三路图像都先缩放到：
 
@@ -67,7 +109,7 @@ prompt + 当前 state ─> 离散化/tokenizer ─> tokens ─┤
 三路 [B, 768, 2048]
 ```
 
-## 4. prompt 和 state 如何进入 VLM
+## 5. prompt 和 state 如何进入 VLM
 
 PI0.5 不用一个连续线性层直接接收 `[B, D]` state，而是：
 
@@ -100,7 +142,7 @@ Action:
 
 图像 tokens 与 prompt/state tokens 拼成 VLM prefix。padding token 会被 mask，不参与有效注意力。
 
-## 5. `action_in_proj` 做什么
+## 6. `action_in_proj` 做什么
 
 训练时真实 actions 的形状是：
 
@@ -124,7 +166,7 @@ action_tokens = self.action_in_proj(noisy_actions)
 
 注意：每一个时间步的完整 D 维动作被映射成一个 action token，不是每个关节对应一个 token。
 
-## 6. Action Expert 如何读取 VLM
+## 7. Prefix 和 suffix 如何在代码中协同
 
 PI0.5 不是“VLM 输出一个向量，再交给另一个完全独立的网络”。Gemma 2B prefix expert 与 Gemma 300M action expert 在多专家 Transformer 中协同计算：
 
@@ -144,7 +186,20 @@ prompt 要求做什么
 
 `action_in_proj` 不属于 VLM prefix，也不会把 noisy action 输入 Gemma 2B；它属于 Action Expert 的输入接口。
 
-## 7. timestep 和 adaRMS
+可以把信息流总结为：
+
+```text
+VLM prefix：图像、prompt、state
+       │
+       │ 提供 attention K/V
+       ▼
+Action suffix：带噪 action tokens
+       │
+       ▼
+预测 flow velocity
+```
+
+## 8. timestep 和 adaRMS
 
 网络还需要知道当前动作有多“嘈杂”。flow timestep 先变成正弦/余弦向量，再通过 `time_mlp_in/out` 得到 1024 维条件：
 
@@ -157,7 +212,7 @@ timestep t
 
 这个条件注入 Action Expert 的 RMSNorm，帮助同一个网络处理不同噪声阶段。
 
-## 8. 训练：学习速度场
+## 9. 训练：学习速度场
 
 [`compute_loss()`](../../src/openpi/models/pi0.py) 构造：
 
@@ -190,7 +245,7 @@ v_t = action_out_proj(ActionExpert(...))
 loss = mean((v_t - u_t)^2)
 ```
 
-## 9. 推理：从噪声生成 action
+## 10. 推理：从噪声生成 action
 
 推理没有真实 action，先生成纯随机噪声：
 
@@ -198,7 +253,14 @@ loss = mean((v_t - u_t)^2)
 x_1 ~ Normal(0, I)，shape [B, H, D]
 ```
 
-VLM prefix 只计算一次并缓存 K/V。之后 Action Expert 重复预测速度，并用 Euler 方法更新动作：
+推理过程中，两部分的变化方式不同：
+
+```text
+prefix：图像、任务和当前 state 不变，只计算一次并缓存 K/V
+suffix：从随机噪声开始，每一步 Euler 更新后都会变化
+```
+
+之后 Action Expert 重复读取相同 prefix、处理最新 suffix、预测速度，并用 Euler 方法更新动作：
 
 ```text
 x_t <- x_t + dt * v_t
@@ -206,7 +268,17 @@ x_t <- x_t + dt * v_t
 
 默认执行 10 步，最终得到 action chunk。
 
-## 10. VLM 如何兼容 28D/56D state
+因此推理可以概括为：
+
+```text
+固定的题目和条件 prefix
+        +
+不断修改的答案 suffix
+        ↓
+最终 action chunk
+```
+
+## 11. VLM 如何兼容 28D/56D state
 
 VLM 不直接接收 `[B, 28]` 或 `[B, 56]` 连续向量。不同长度的 state 会先变成包含不同数量数字的文本，最后都 padding/truncate 为：
 
