@@ -1,0 +1,241 @@
+<mxfile host="65bd71144e">
+    <diagram id="pi05-structure" name="PI0.5 Structure">
+        <mxGraphModel dx="1006" dy="1019" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1280" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="&lt;b&gt;PI0.5 Structure — VLM Prefix + Action Expert + Flow Matching&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=26;fontColor=#172B4D;" parent="1" vertex="1">
+                    <mxGeometry x="280" y="20" width="1360" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" value="Prefix 与 suffix 是序列区段；蓝色/橙色 tensor 是各自的 hidden (latent) representations" style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=14;fontColor=#5E6C84;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="65" width="1060" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="input_zone" value="&lt;b&gt;1 · Observable inputs&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#B3BAC5;fontColor=#344563;fontSize=15;" parent="1" vertex="1">
+                    <mxGeometry x="40" y="110" width="330" height="920" as="geometry"/>
+                </mxCell>
+                <mxCell id="adapter_zone" value="&lt;b&gt;2 · Encoders / input adapters&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#B3BAC5;fontColor=#344563;fontSize=15;" parent="1" vertex="1">
+                    <mxGeometry x="400" y="110" width="390" height="920" as="geometry"/>
+                </mxCell>
+                <mxCell id="transformer_zone" value="&lt;b&gt;3 · Coupled multi-expert Transformer · repeated for 18 layers&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F4F5F7;swimlaneFillColor=#FFFFFF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=16;" parent="1" vertex="1">
+                    <mxGeometry x="820" y="110" width="740" height="920" as="geometry"/>
+                </mxCell>
+                <mxCell id="output_zone" value="&lt;b&gt;4 · Action output&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#B3BAC5;fontColor=#344563;fontSize=15;" parent="1" vertex="1">
+                    <mxGeometry x="1590" y="110" width="290" height="920" as="geometry"/>
+                </mxCell>
+                <mxCell id="images" value="&lt;b&gt;Three RGB cameras&lt;/b&gt;&lt;br&gt;base + left wrist + right wrist&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;3 × [B, 224, 224, 3]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;strokeWidth=1.5;fontColor=#172B4D;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="75" y="180" width="260" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="language_state" value="&lt;b&gt;Prompt + discrete state&lt;/b&gt;&lt;br&gt;Task text + normalized state values&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;observable condition&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;strokeWidth=1.5;fontColor=#172B4D;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="75" y="385" width="260" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="noisy_actions" value="&lt;b&gt;Noisy action x&lt;sub&gt;t&lt;/sub&gt;&lt;/b&gt;&lt;br&gt;action-space sample&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;[B, H, D]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=15;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="75" y="700" width="260" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="timestep" value="&lt;b&gt;Flow timestep t&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;noise level, t ∈ [0, 1]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;strokeWidth=1.5;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="75" y="875" width="260" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="image_preprocess" value="&lt;b&gt;Image preprocessing&lt;/b&gt;&lt;br&gt;resize / pad / normalize" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;fontColor=#172B4D;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="165" width="150" height="75" as="geometry"/>
+                </mxCell>
+                <mxCell id="siglip" value="&lt;b&gt;SigLIP So400m/14&lt;/b&gt;&lt;br&gt;Vision Transformer Encoder&lt;br&gt;256 patches per image" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F2FF;strokeColor=#4C9AFF;strokeWidth=2;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="610" y="155" width="155" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="image_tokens" value="&lt;b&gt;Image tokens&lt;/b&gt;&lt;br&gt;visual hidden/features&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;[B, 768, 2048]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DEEBFF;strokeColor=#4C9AFF;strokeWidth=2;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="625" y="275" width="140" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="tokenizer" value="&lt;b&gt;SentencePiece tokenizer&lt;/b&gt;&lt;br&gt;preprocessing, not a neural Encoder" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;fontColor=#172B4D;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="440" y="390" width="160" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="token_ids" value="&lt;b&gt;Token IDs&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;[B, 256]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;fontColor=#172B4D;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="625" y="395" width="140" height="70" as="geometry"/>
+                </mxCell>
+                <mxCell id="embedding" value="&lt;b&gt;Gemma embedding&lt;/b&gt;&lt;br&gt;ID lookup → initial hidden vectors" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F2FF;strokeColor=#4C9AFF;strokeWidth=1.5;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="515" y="500" width="180" height="85" as="geometry"/>
+                </mxCell>
+                <mxCell id="text_tokens" value="&lt;b&gt;Text/state tokens&lt;/b&gt;&lt;br&gt;initial hidden representations&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;[B, 256, 2048]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DEEBFF;strokeColor=#4C9AFF;strokeWidth=2;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="625" y="610" width="140" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="action_in_proj" value="&lt;b&gt;action_in_proj&lt;/b&gt;&lt;br&gt;Linear(D, 1024)&lt;br&gt;input projection / adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0E0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="455" y="710" width="190" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="action_tokens" value="&lt;b&gt;Action tokens&lt;/b&gt;&lt;br&gt;suffix hidden representations&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;[B, H, 1024]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CC;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="625" y="820" width="140" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="time_embed" value="&lt;b&gt;sin/cos embedding + time MLP&lt;/b&gt;&lt;br&gt;1024-D adaRMS condition" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0E0;strokeColor=#FF991F;strokeWidth=1.5;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="435" y="895" width="220" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="prefix_lane" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F9FF;strokeColor=#4C9AFF;strokeWidth=1.5;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="845" y="165" width="685" height="315" as="geometry"/>
+                </mxCell>
+                <mxCell id="prefix_label" value="&lt;b&gt;PREFIX · condition sequence&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;image + prompt + discrete state&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;fontSize=15;fontColor=#0747A6;" parent="1" vertex="1">
+                    <mxGeometry x="865" y="175" width="310" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="prefix_concat" value="&lt;b&gt;Concatenate prefix tokens&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;[B, L&lt;sub&gt;p&lt;/sub&gt;, 2048]&lt;/font&gt;&lt;br&gt;L&lt;sub&gt;p&lt;/sub&gt; ≈ 768 + 256" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DEEBFF;strokeColor=#4C9AFF;strokeWidth=2;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="875" y="245" width="190" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="prefix_expert" value="&lt;b&gt;Gemma 2B Prefix Expert&lt;/b&gt;&lt;br&gt;width 2048 · MLP 16384&lt;br&gt;expert-specific Norm / Attention / MLP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B3D4FF;strokeColor=#0052CC;strokeWidth=2;fontColor=#0747A6;fontSize=15;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1110" y="235" width="245" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="prefix_qkv" value="&lt;b&gt;Prefix Q/K/V&lt;/b&gt;&lt;br&gt;own projection weights&lt;br&gt;Q: 8×256 · KV: 1×256" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAE6FF;strokeColor=#6554C0;strokeWidth=1.5;fontColor=#403294;fontSize=13;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="1380" y="240" width="125" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="prefix_hidden_note" value="After every layer: prefix hidden states remain &lt;b&gt;[B, L&lt;sub&gt;p&lt;/sub&gt;, 2048]&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#0747A6;" parent="1" vertex="1">
+                    <mxGeometry x="1020" y="400" width="370" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="joint_attention" value="&lt;b&gt;JOINT ATTENTION SPACE&lt;/b&gt;&lt;br&gt;Q/K/V are concatenated along sequence positions&lt;br&gt;&lt;font color=&quot;#403294&quot;&gt;shared geometry: 8 query heads · 1 KV head · head_dim 256&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAE6FF;strokeColor=#6554C0;strokeWidth=3;fontColor=#403294;fontSize=15;spacing=9;" parent="1" vertex="1">
+                    <mxGeometry x="970" y="500" width="430" height="115" as="geometry"/>
+                </mxCell>
+                <mxCell id="mask_note" value="&lt;b&gt;Attention mask / information direction&lt;/b&gt;&lt;br&gt;Prefix Q → Prefix K/V&lt;br&gt;Action Q → Prefix + Action K/V&lt;br&gt;&lt;font color=&quot;#BF2600&quot;&gt;Prefix cannot read noisy action&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE6;strokeColor=#FF5630;strokeWidth=1.5;fontColor=#BF2600;fontSize=13;spacing=7;" parent="1" vertex="1">
+                    <mxGeometry x="1415" y="490" width="125" height="145" as="geometry"/>
+                </mxCell>
+                <mxCell id="suffix_lane" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9F2;strokeColor=#FF991F;strokeWidth=1.5;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="845" y="650" width="685" height="340" as="geometry"/>
+                </mxCell>
+                <mxCell id="suffix_label" value="&lt;b&gt;SUFFIX · action sequence&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;H noisy future-action positions&lt;/font&gt;" style="text;html=1;align=left;verticalAlign=middle;fontSize=15;fontColor=#7A3E00;" parent="1" vertex="1">
+                    <mxGeometry x="865" y="660" width="300" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="action_expert" value="&lt;b&gt;Gemma 300M Action Expert&lt;/b&gt;&lt;br&gt;width 1024 · MLP 4096&lt;br&gt;expert-specific Norm / Attention / MLP&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;adaRMS injects timestep&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFD59A;strokeColor=#FF8B00;strokeWidth=2;fontColor=#7A3E00;fontSize=15;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1020" y="750" width="270" height="135" as="geometry"/>
+                </mxCell>
+                <mxCell id="action_qkv" value="&lt;b&gt;Action Q/K/V&lt;/b&gt;&lt;br&gt;own projection weights&lt;br&gt;Q: 8×256 · KV: 1×256" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAE6FF;strokeColor=#6554C0;strokeWidth=1.5;fontColor=#403294;fontSize=13;spacing=6;" parent="1" vertex="1">
+                    <mxGeometry x="1320" y="760" width="130" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="suffix_hidden_note" value="After every layer: suffix hidden states remain &lt;b&gt;[B, H, 1024]&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#7A3E00;" parent="1" vertex="1">
+                    <mxGeometry x="1010" y="925" width="330" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="action_out_proj" value="&lt;b&gt;action_out_proj&lt;/b&gt;&lt;br&gt;Linear(1024, D)&lt;br&gt;output projection / action head" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1635" y="730" width="200" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="velocity" value="&lt;b&gt;Predicted flow velocity v&lt;sub&gt;t&lt;/sub&gt;&lt;/b&gt;&lt;br&gt;action-space output&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;[B, H, D]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ABF5D1;strokeColor=#00875A;strokeWidth=2;fontColor=#006644;fontSize=15;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1635" y="865" width="200" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="euler" value="&lt;b&gt;Inference: Euler update&lt;/b&gt;&lt;br&gt;x&lt;sub&gt;t+Δt&lt;/sub&gt; = x&lt;sub&gt;t&lt;/sub&gt; + Δt · v&lt;sub&gt;t&lt;/sub&gt;&lt;br&gt;repeat until action sample" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=1.5;fontColor=#006644;fontSize=13;spacing=7;" parent="1" vertex="1">
+                    <mxGeometry x="1615" y="200" width="240" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="training_note" value="&lt;b&gt;Training target&lt;/b&gt;&lt;br&gt;u&lt;sub&gt;t&lt;/sub&gt; = ε − action&lt;br&gt;MSE(v&lt;sub&gt;t&lt;/sub&gt;, u&lt;sub&gt;t&lt;/sub&gt;)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;dashed=1;fontColor=#344563;fontSize=13;spacing=7;" parent="1" vertex="1">
+                    <mxGeometry x="1635" y="485" width="200" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_raw" value="Observable / action-space data" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;fontColor=#344563;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="1070" width="200" height="38" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_prefix" value="Prefix hidden representations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DEEBFF;strokeColor=#4C9AFF;fontColor=#0747A6;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="650" y="1070" width="210" height="38" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_suffix" value="Suffix hidden representations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CC;strokeColor=#FF991F;fontColor=#7A3E00;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="880" y="1070" width="210" height="38" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_attn" value="Shared attention space" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAE6FF;strokeColor=#6554C0;fontColor=#403294;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="1110" y="1070" width="190" height="38" as="geometry"/>
+                </mxCell>
+                <mxCell id="legend_output" value="Action prediction / update" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;fontColor=#006644;fontSize=12;" parent="1" vertex="1">
+                    <mxGeometry x="1320" y="1070" width="200" height="38" as="geometry"/>
+                </mxCell>
+                <mxCell id="footer" value="Key point: there is no third Transformer wrapping two independent models. Each of the 18 paired layers uses expert-specific weights, then communicates through one masked joint-attention operation." style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#5E6C84;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="360" y="1130" width="1200" height="45" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_images_pre" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7A869A;strokeWidth=1.5;endArrow=block;endFill=1;" parent="1" source="images" target="image_preprocess" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_pre_siglip" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4C9AFF;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="image_preprocess" target="siglip" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_siglip_tokens" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4C9AFF;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="siglip" target="image_tokens" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_image_prefix" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4C9AFF;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="image_tokens" target="prefix_concat" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_language_tokenizer" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7A869A;strokeWidth=1.5;endArrow=block;endFill=1;" parent="1" source="language_state" target="tokenizer" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_tokenizer_ids" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7A869A;strokeWidth=1.5;endArrow=block;endFill=1;" parent="1" source="tokenizer" target="token_ids" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_ids_embedding" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4C9AFF;strokeWidth=1.5;endArrow=block;endFill=1;" parent="1" source="token_ids" target="embedding" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_embedding_text" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4C9AFF;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="embedding" target="text_tokens" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_text_prefix" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4C9AFF;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="text_tokens" target="prefix_concat" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_prefix_expert" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0052CC;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="prefix_concat" target="prefix_expert" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_prefix_qkv" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6554C0;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="prefix_expert" target="prefix_qkv" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_prefix_joint" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6554C0;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="prefix_qkv" target="joint_attention" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_joint_prefix_return" value="split output + residual" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0052CC;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#0747A6;fontSize=11;" parent="1" source="joint_attention" target="prefix_expert" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="920" y="555"/>
+                            <mxPoint x="920" y="380"/>
+                            <mxPoint x="1230" y="380"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_noisy_proj" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="noisy_actions" target="action_in_proj" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_proj_tokens" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="action_in_proj" target="action_tokens" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_tokens_expert" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF8B00;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="action_tokens" target="action_expert" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_timestep_embed" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=1.5;endArrow=block;endFill=1;" parent="1" source="timestep" target="time_embed" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_time_adarms" value="adaRMS condition" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#7A3E00;fontSize=11;" parent="1" source="time_embed" target="action_expert" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_action_qkv" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6554C0;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="action_expert" target="action_qkv" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_action_joint" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6554C0;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="action_qkv" target="joint_attention" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_joint_action_return" value="split output + residual" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF8B00;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#7A3E00;fontSize=11;" parent="1" source="joint_attention" target="action_expert" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="950" y="560"/>
+                            <mxPoint x="950" y="900"/>
+                            <mxPoint x="1155" y="900"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_expert_out" value="final suffix hidden" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#36B37E;strokeWidth=2;endArrow=block;endFill=1;fontColor=#006644;fontSize=11;" parent="1" source="action_expert" target="action_out_proj" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_out_velocity" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#36B37E;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="action_out_proj" target="velocity" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_train_loss" value="MSE during training" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7A869A;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#5E6C84;fontSize=11;" parent="1" source="velocity" target="training_note" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_velocity_euler" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#36B37E;strokeWidth=2;dashed=1;endArrow=block;endFill=1;" parent="1" source="velocity" target="euler" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1860" y="915"/>
+                            <mxPoint x="1860" y="250"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_euler_noisy" value="updated x&lt;sub&gt;t&lt;/sub&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#36B37E;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontColor=#006644;fontSize=11;" parent="1" source="euler" target="noisy_actions" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1580" y="250"/>
+                            <mxPoint x="1580" y="1000"/>
+                            <mxPoint x="55" y="1000"/>
+                            <mxPoint x="55" y="748"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>

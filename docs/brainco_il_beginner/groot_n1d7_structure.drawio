@@ -1,0 +1,305 @@
+<mxfile host="65bd71144e">
+    <diagram id="groot-n1d7-structure" name="GR00T N1.7 Structure">
+        <mxGraphModel dx="974" dy="1073" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1450" math="0" shadow="0">
+            <root>
+                <mxCell id="0"/>
+                <mxCell id="1" parent="0"/>
+                <mxCell id="title" value="&lt;b&gt;NVIDIA Isaac GR00T N1.7 Structure — System 2 VLM + System 1 Flow-Matching DiT&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=26;fontColor=#172B4D;" parent="1" vertex="1">
+                    <mxGeometry x="300" y="20" width="1600" height="50" as="geometry"/>
+                </mxCell>
+                <mxCell id="subtitle" value="Concrete example: B=1 · 3 cameras · state history=1 · valid state/action dim=56 · valid horizon=16 · N1.7 internal capacity remains 132D × 40 steps" style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=14;fontColor=#5E6C84;" parent="1" vertex="1">
+                    <mxGeometry x="430" y="65" width="1340" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="input_zone" value="&lt;b&gt;1 · Robot observation / training inputs&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#B3BAC5;fontColor=#344563;fontSize=15;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="110" width="305" height="1010" as="geometry"/>
+                </mxCell>
+                <mxCell id="vlm_zone" value="&lt;b&gt;2 · System 2 — Vision-Language backbone&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F4F9FF;swimlaneFillColor=#FFFFFF;strokeColor=#4C9AFF;strokeWidth=2;fontColor=#0747A6;fontSize=16;" parent="1" vertex="1">
+                    <mxGeometry x="365" y="110" width="515" height="1010" as="geometry"/>
+                </mxCell>
+                <mxCell id="action_zone" value="&lt;b&gt;3 · System 1 — Embodiment-conditioned Flow-Matching Action Head&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#FFF9F2;swimlaneFillColor=#FFFFFF;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=16;" parent="1" vertex="1">
+                    <mxGeometry x="910" y="110" width="920" height="1010" as="geometry"/>
+                </mxCell>
+                <mxCell id="output_zone" value="&lt;b&gt;4 · Output / controller&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F3FFF8;swimlaneFillColor=#FFFFFF;strokeColor=#36B37E;strokeWidth=1.5;fontColor=#006644;fontSize=15;" parent="1" vertex="1">
+                    <mxGeometry x="1860" y="110" width="305" height="1010" as="geometry"/>
+                </mxCell>
+                <mxCell id="images" value="&lt;b&gt;3 RGB cameras&lt;/b&gt;&lt;br&gt;base + left wrist + right wrist&lt;br&gt;each [1, 1, H, W, 3]&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;stacked [1, 1, 3, H, W, 3]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;strokeWidth=1.5;fontColor=#172B4D;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="175" width="235" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="language" value="&lt;b&gt;Language instruction&lt;/b&gt;&lt;br&gt;e.g. “pick up the red cup”&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;[1, 1] string&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;strokeWidth=1.5;fontColor=#172B4D;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="315" width="235" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="state" value="&lt;b&gt;Robot state history&lt;/b&gt;&lt;br&gt;example valid state [1, 1, 56]&lt;br&gt;normalize + zero-pad&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;model input [1, 1, 132]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;strokeWidth=1.5;fontColor=#172B4D;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="505" width="235" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="embodiment" value="&lt;b&gt;Embodiment ID&lt;/b&gt;&lt;br&gt;robot/category selector&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;[1], one of up to 32 categories&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F5F7;strokeColor=#7A869A;strokeWidth=1.5;fontColor=#344563;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="640" width="235" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="actions_train" value="&lt;b&gt;Action chunk / inference noise&lt;/b&gt;&lt;br&gt;valid training action a [1, 16, 56]&lt;br&gt;pad horizon + dimensions&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;model tensor / ε [1, 40, 132]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="785" width="235" height="105" as="geometry"/>
+                </mxCell>
+                <mxCell id="flow_t" value="&lt;b&gt;Flow timestep t&lt;/b&gt;&lt;br&gt;continuous [1] → bucket [1]&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;t=0 noise → t=1 action&lt;/font&gt;&lt;br&gt;1000 discrete buckets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;strokeWidth=1.5;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="65" y="950" width="235" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="vl_processor" value="&lt;b&gt;Qwen3-VL processor&lt;/b&gt;&lt;br&gt;3 views after N1.7 eval transform:&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;[1, 3, 3, 256, 256]&lt;/font&gt;&lt;br&gt;+ tokenizer / chat template" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F2FF;strokeColor=#4C9AFF;strokeWidth=1.5;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="405" y="210" width="205" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="vl_tokens" value="&lt;b&gt;Vision + language processor output&lt;/b&gt;&lt;br&gt;input_ids [1, S], attention_mask [1, S]&lt;br&gt;image_grid_thw [3, 3], pixel_values dynamic&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;S depends on Qwen3-VL image grid + text length&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DEEBFF;strokeColor=#4C9AFF;strokeWidth=1.5;fontColor=#0747A6;fontSize=13;spacing=7;" parent="1" vertex="1">
+                    <mxGeometry x="635" y="210" width="205" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="backbone" value="&lt;b&gt;Cosmos-Reason2-2B&lt;/b&gt;&lt;br&gt;Qwen3-VL architecture&lt;br&gt;System 2 visual-language reasoning&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;default select_layer = 12&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B3D4FF;strokeColor=#0052CC;strokeWidth=2.5;fontColor=#0747A6;fontSize=16;spacing=9;" parent="1" vertex="1">
+                    <mxGeometry x="480" y="360" width="245" height="135" as="geometry"/>
+                </mxCell>
+                <mxCell id="4" style="edgeStyle=none;html=1;" edge="1" parent="1" source="backbone_features">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="490" y="660" as="targetPoint"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="backbone_features" value="&lt;b&gt;VLM backbone features&lt;/b&gt;&lt;br&gt;condition memory / hidden states&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;[1, S, 2048]&lt;/font&gt;&lt;br&gt;S is dynamic, not fixed 3×256" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DEEBFF;strokeColor=#4C9AFF;strokeWidth=2;fontColor=#0747A6;fontSize=15;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="480" y="550" width="245" height="105" as="geometry"/>
+                </mxCell>
+                <mxCell id="vlln" value="&lt;b&gt;VLLN / optional VL self-attention&lt;/b&gt;&lt;br&gt;LayerNorm; current default extra VL-SA = Identity&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;still [1, S, 2048]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F2FF;strokeColor=#4C9AFF;strokeWidth=1.5;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="455" y="705" width="295" height="105" as="geometry"/>
+                </mxCell>
+                <mxCell id="vlm_note" value="&lt;b&gt;N1.7 default tuning&lt;/b&gt;&lt;br&gt;visual + LLM backbone frozen&lt;br&gt;action head/projectors trainable&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;can be changed by fine-tuning config&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;dashed=1;fontColor=#344563;fontSize=13;spacing=7;" parent="1" vertex="1">
+                    <mxGeometry x="470" y="880" width="265" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="state_encoder" value="&lt;b&gt;Embodiment-specific State Encoder&lt;/b&gt;&lt;br&gt;CategorySpecificMLP&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;[1,1,132] → 1024 → 1536&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0E0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="945" y="470" width="230" height="110" as="geometry"/>
+                </mxCell>
+                <mxCell id="state_token" value="&lt;b&gt;One state token&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;[1, 1, 1536]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CC;strokeColor=#FF991F;strokeWidth=1.5;fontColor=#7A3E00;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="1210" y="485" width="160" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="flow_construct" value="&lt;b&gt;Flow-matching training sample&lt;/b&gt;&lt;br&gt;x&lt;sub&gt;t&lt;/sub&gt;=(1−t)ε+t·a · u&lt;sub&gt;t&lt;/sub&gt;=a−ε&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;x&lt;sub&gt;t&lt;/sub&gt;,u&lt;sub&gt;t&lt;/sub&gt;: [1,40,132]&lt;/font&gt;&lt;br&gt;mask valid region [:,0:16,0:56]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="945" y="725" width="230" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="action_encoder" value="&lt;b&gt;Embodiment-specific Action Encoder&lt;/b&gt;&lt;br&gt;[1,40,132] → [1,40,1536]&lt;br&gt;+ sinusoidal t embedding → MLP&lt;br&gt;+ learned action-position embedding" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0E0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1210" y="720" width="235" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="action_tokens" value="&lt;b&gt;Noisy action tokens&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;[1, 40, 1536]&lt;/font&gt;&lt;br&gt;16 valid + 24 padded steps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CC;strokeColor=#FF991F;strokeWidth=1.5;fontColor=#7A3E00;fontSize=14;" parent="1" vertex="1">
+                    <mxGeometry x="1480" y="745" width="170" height="80" as="geometry"/>
+                </mxCell>
+                <mxCell id="concat_sa" value="&lt;b&gt;Concatenate state + action tokens&lt;/b&gt;&lt;br&gt;DiT query stream&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;[1, 1+40, 1536] = [1,41,1536]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFD59A;strokeColor=#FF8B00;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1400" y="555" width="225" height="105" as="geometry"/>
+                </mxCell>
+                <mxCell id="dit_container" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF9F2;strokeColor=#FF8B00;strokeWidth=2.5;dashed=1;" parent="1" vertex="1">
+                    <mxGeometry x="1000" y="165" width="790" height="270" as="geometry"/>
+                </mxCell>
+                <mxCell id="dit_title" value="&lt;b&gt;AlternateVLDiT · 16 Transformer blocks · hidden width 32 heads × 48 = 1536&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=16;fontColor=#7A3E00;" parent="1" vertex="1">
+                    <mxGeometry x="1040" y="175" width="710" height="35" as="geometry"/>
+                </mxCell>
+                <mxCell id="cross_attn" value="&lt;b&gt;Even blocks: Cross-Attention&lt;/b&gt;&lt;br&gt;Q = state/action stream [1536]&lt;br&gt;K/V = VLM features [2048]&lt;br&gt;alternate non-image(text) / image masks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EAE6FF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1030" y="235" width="245" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="self_attn" value="&lt;b&gt;Odd blocks: Self-Attention&lt;/b&gt;&lt;br&gt;state token ↔ all action tokens&lt;br&gt;temporal/action interaction&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;residual + GEGLU FFN&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFE8CC;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1310" y="235" width="220" height="130" as="geometry"/>
+                </mxCell>
+                <mxCell id="ada_norm" value="&lt;b&gt;Timestep encoder → AdaLayerNorm&lt;/b&gt;&lt;br&gt;256-D sin/cos → 1536-D t embedding&lt;br&gt;per-block scale(t), shift(t)&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;not PI0.5 adaRMS gate&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0E0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1560" y="225" width="205" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="dit_loop_note" value="Block order: cross(text) → self → cross(image) → self → …; VLM is condition memory, not a jointly updated action expert." style="text;html=1;align=center;verticalAlign=middle;fontSize=13;fontColor=#5E6C84;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="1080" y="385" width="610" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="dit_output" value="&lt;b&gt;DiT output projection&lt;/b&gt;&lt;br&gt;1536 → 1024&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;[1, 41, 1024]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFD59A;strokeColor=#FF8B00;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1405" y="900" width="210" height="95" as="geometry"/>
+                </mxCell>
+                <mxCell id="action_decoder" value="&lt;b&gt;Embodiment-specific Action Decoder&lt;/b&gt;&lt;br&gt;[1,41,1024] → [1,41,132]&lt;br&gt;slice last 40 positions&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;velocity [1,40,132]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0E0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1165" y="935" width="220" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="pred_velocity" value="&lt;b&gt;Predicted flow velocity v&lt;sub&gt;t&lt;/sub&gt;&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;[1, 40, 132]&lt;/font&gt;&lt;br&gt;action_mask [1,40,132]&lt;br&gt;valid [:,0:16,0:56]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="930" y="945" width="205" height="100" as="geometry"/>
+                </mxCell>
+                <mxCell id="loss" value="&lt;b&gt;Training supervision&lt;/b&gt;&lt;br&gt;masked MSE(v&lt;sub&gt;t&lt;/sub&gt;, a−ε)&lt;br&gt;backprop through action head&lt;br&gt;and any unfrozen backbone parameters" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE6;strokeColor=#FF5630;strokeWidth=1.5;fontColor=#BF2600;fontSize=13;spacing=7;" parent="1" vertex="1">
+                    <mxGeometry x="1585" y="920" width="210" height="125" as="geometry"/>
+                </mxCell>
+                <mxCell id="euler" value="&lt;b&gt;4-step Euler integration&lt;/b&gt;&lt;br&gt;x ← x + Δt · v&lt;sub&gt;t&lt;/sub&gt;&lt;br&gt;Δt = +1/4&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;t: 0 noise → 1 action&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1900" y="695" width="225" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="action_chunk" value="&lt;b&gt;Internal denoised action tensor&lt;/b&gt;&lt;br&gt;before embodiment slicing&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;[1, 40, 132]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ABF5D1;strokeColor=#00875A;strokeWidth=2;fontColor=#006644;fontSize=15;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1900" y="870" width="225" height="105" as="geometry"/>
+                </mxCell>
+                <mxCell id="postprocess" value="&lt;b&gt;Slice + unnormalize&lt;/b&gt;&lt;br&gt;keep horizon 0:16 and dimensions 0:56&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;final action [1, 16, 56]&lt;/font&gt;&lt;br&gt;split named streams" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=1.5;fontColor=#006644;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1900" y="1010" width="225" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="controller" value="&lt;b&gt;Robot controller&lt;/b&gt;&lt;br&gt;execute first K steps, then re-plan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=1.5;fontColor=#006644;fontSize=14;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1900" y="535" width="225" height="90" as="geometry"/>
+                </mxCell>
+                <mxCell id="comparison_zone" value="&lt;b&gt;GR00T N1.7 vs PI0.5 — the important architectural differences&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=40;fillColor=#F4F5F7;swimlaneFillColor=#FFFFFF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=16;" parent="1" vertex="1">
+                    <mxGeometry x="30" y="1150" width="2135" height="245" as="geometry"/>
+                </mxCell>
+                <mxCell id="compare_coupling" value="&lt;b&gt;Coupling&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;GR00T:&lt;/font&gt; VLM first, separate DiT reads VLM memory by cross-attention.&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;PI0.5:&lt;/font&gt; Prefix/Action experts are paired inside every one of 18 layers and concatenate Q/K/V for joint attention." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6554C0;fontColor=#344563;fontSize=13;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="55" y="1210" width="400" height="145" as="geometry"/>
+                </mxCell>
+                <mxCell id="compare_state" value="&lt;b&gt;Robot state&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;GR00T:&lt;/font&gt; continuous state → embodiment-specific MLP → one 1536-D DiT token.&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;PI0.5:&lt;/font&gt; state values are discretized into text tokens and placed in the 2048-D VLM prefix." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6554C0;fontColor=#344563;fontSize=13;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="475" y="1210" width="400" height="145" as="geometry"/>
+                </mxCell>
+                <mxCell id="compare_action" value="&lt;b&gt;Action network&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;GR00T:&lt;/font&gt; independent 16-block DiT, width 1536; alternate cross/self-attention; embodiment-specific encoder/decoder.&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;PI0.5:&lt;/font&gt; Gemma 300M Action Expert, width 1024, coupled to Gemma 2B Prefix Expert." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6554C0;fontColor=#344563;fontSize=13;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="895" y="1210" width="400" height="145" as="geometry"/>
+                </mxCell>
+                <mxCell id="compare_time" value="&lt;b&gt;Flow convention / time conditioning&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;GR00T:&lt;/font&gt; t=0 noise → t=1 action; target a−ε; AdaLayerNorm scale/shift; +dt.&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;PI0.5 code:&lt;/font&gt; t=1 noise → t=0 action; target ε−a; adaRMS scale/shift/gate; −dt." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#6554C0;fontColor=#344563;fontSize=13;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1315" y="1210" width="400" height="145" as="geometry"/>
+                </mxCell>
+                <mxCell id="compare_version" value="&lt;b&gt;Concrete example vs model capacity&lt;/b&gt;&lt;br&gt;Effective robot contract: B=1, 3 cameras, state/action=56D, horizon=16.&lt;br&gt;N1.7 internal padded contract: state/action max=132D, horizon=40, so output is sliced back to [1,16,56]." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFAE6;strokeColor=#FFAB00;fontColor=#7A4F01;fontSize=13;spacing=8;" parent="1" vertex="1">
+                    <mxGeometry x="1735" y="1210" width="400" height="145" as="geometry"/>
+                </mxCell>
+                <mxCell id="footer" value="Source basis: NVIDIA Isaac-GR00T main branch / N1.7 config, processor, Qwen3 backbone, action head and DiT. Example assumption: state_dim=56 as well as action_dim=56; VLM sequence length S remains dynamic by design." style="text;html=1;align=center;verticalAlign=middle;fontSize=12;fontColor=#5E6C84;fontStyle=2;" parent="1" vertex="1">
+                    <mxGeometry x="350" y="1400" width="1500" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_images_processor" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4C9AFF;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="images" target="vl_processor" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_language_processor" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4C9AFF;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="language" target="vl_processor" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_processor_tokens" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4C9AFF;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="vl_processor" target="vl_tokens" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_tokens_backbone" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0052CC;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="vl_tokens" target="backbone" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_backbone_features" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0052CC;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="backbone" target="backbone_features" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_features_vlln" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#4C9AFF;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="backbone_features" target="vlln" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_vlln_cross" value="K/V condition memory [1,S,2048]" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6554C0;strokeWidth=2.5;endArrow=block;endFill=1;fontColor=#403294;fontSize=11;" parent="1" source="vlln" target="cross_attn" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="850" y="755"/>
+                            <mxPoint x="850" y="300"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_state_encoder" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="state" target="state_encoder" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_embodiment_state" value="select weights" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7A869A;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#5E6C84;fontSize=10;" parent="1" source="embodiment" target="state_encoder" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_state_token" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="state_encoder" target="state_token" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_state_concat" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF8B00;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="state_token" target="concat_sa" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_action_flow" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="actions_train" target="flow_construct" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_t_flow" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=1.5;endArrow=block;endFill=1;" parent="1" source="flow_t" target="flow_construct" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_flow_encoder" value="x_t" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=2;endArrow=block;endFill=1;fontColor=#7A3E00;fontSize=11;" parent="1" source="flow_construct" target="action_encoder" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_t_encoder" value="t bucket" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#7A3E00;fontSize=10;" parent="1" source="flow_t" target="action_encoder" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_embodiment_actionenc" value="select weights" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7A869A;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#5E6C84;fontSize=10;" parent="1" source="embodiment" target="action_encoder" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_encoder_actiontokens" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="action_encoder" target="action_tokens" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_action_concat" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF8B00;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="action_tokens" target="concat_sa" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_concat_cross" value="query stream" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF8B00;strokeWidth=2.5;endArrow=block;endFill=1;fontColor=#7A3E00;fontSize=11;" parent="1" source="concat_sa" target="cross_attn" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1390" y="605"/>
+                            <mxPoint x="1390" y="450"/>
+                            <mxPoint x="1150" y="450"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_cross_self" value="alternate" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6554C0;strokeWidth=2;endArrow=block;endFill=1;fontColor=#403294;fontSize=11;" parent="1" source="cross_attn" target="self_attn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_self_cross_loop" value="× 8 pairs" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#6554C0;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#403294;fontSize=11;" parent="1" source="self_attn" target="cross_attn" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1420" y="390"/>
+                            <mxPoint x="1150" y="390"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_t_adanorm" value="t bucket" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#7A3E00;fontSize=10;" parent="1" source="flow_t" target="ada_norm" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1810" y="995"/>
+                            <mxPoint x="1810" y="300"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_adanorm_cross" value="condition every block" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#7A3E00;fontSize=10;" parent="1" source="ada_norm" target="cross_attn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_adanorm_self" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF991F;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;" parent="1" source="ada_norm" target="self_attn" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_dit_output" value="final hidden [1,41,1536]" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF8B00;strokeWidth=2;endArrow=block;endFill=1;fontColor=#7A3E00;fontSize=11;" parent="1" source="self_attn" target="dit_output" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1540" y="400"/>
+                            <mxPoint x="1730" y="400"/>
+                            <mxPoint x="1730" y="900"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_output_decoder" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF8B00;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="dit_output" target="action_decoder" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_embodiment_decoder" value="select weights" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#7A869A;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#5E6C84;fontSize=10;" parent="1" source="embodiment" target="action_decoder" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_decoder_velocity" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#36B37E;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="action_decoder" target="pred_velocity" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_velocity_loss" value="training" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF5630;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#BF2600;fontSize=10;" parent="1" source="pred_velocity" target="loss" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_flow_loss" value="target a−ε" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF5630;strokeWidth=1.5;dashed=1;endArrow=block;endFill=1;fontColor=#BF2600;fontSize=10;" parent="1" source="flow_construct" target="loss" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1185" y="860"/>
+                            <mxPoint x="1690" y="860"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_velocity_euler" value="inference v_t" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#36B37E;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontColor=#006644;fontSize=11;" parent="1" source="pred_velocity" target="euler" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1145" y="1090"/>
+                            <mxPoint x="1845" y="1090"/>
+                            <mxPoint x="1845" y="755"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_euler_flow_loop" value="updated x_t, next t" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#36B37E;strokeWidth=2;dashed=1;endArrow=block;endFill=1;fontColor=#006644;fontSize=11;" parent="1" source="euler" target="action_encoder" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="1880" y="755"/>
+                            <mxPoint x="1880" y="680"/>
+                            <mxPoint x="900" y="680"/>
+                            <mxPoint x="900" y="785"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="e_euler_actionchunk" value="after 4 steps" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#36B37E;strokeWidth=2;endArrow=block;endFill=1;fontColor=#006644;fontSize=11;" parent="1" source="euler" target="action_chunk" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_chunk_post" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#36B37E;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="action_chunk" target="postprocess" edge="1">
+                    <mxGeometry relative="1" as="geometry"/>
+                </mxCell>
+                <mxCell id="e_post_controller" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#36B37E;strokeWidth=2;endArrow=block;endFill=1;" parent="1" source="postprocess" target="controller" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="2140" y="1055"/>
+                            <mxPoint x="2140" y="580"/>
+                        </Array>
+                    </mxGeometry>
+                </mxCell>
+            </root>
+        </mxGraphModel>
+    </diagram>
+</mxfile>
