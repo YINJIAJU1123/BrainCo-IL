@@ -43,6 +43,31 @@ def test_lora_strategy_requires_lora_variant():
         )
 
 
+def test_pi05_state_condition_configures_continuous_state():
+    model = pi0_config.Pi0Config(pi05=True, state_cond=True)
+
+    assert model.state_cond is True
+    assert model.discrete_state_input is False
+
+
+def test_pi05_state_condition_rejects_discrete_prompt_state():
+    with pytest.raises(ValueError, match="requires discrete_state_input=False"):
+        pi0_config.Pi0Config(pi05=True, state_cond=True, discrete_state_input=True)
+
+
+def test_state_condition_layers_are_trainable_with_action_interface_strategy():
+    config = _config.TrainConfig(
+        name="test",
+        exp_name="test",
+        model=pi0_config.Pi0Config(pi05=True, state_cond=True),
+        freeze_strategy="action_interface_only",
+    )
+
+    assert not config.effective_freeze_filter(("Pi0", "state_proj", "kernel"), None)
+    assert not config.effective_freeze_filter(("Pi0", "state_mlp_in", "kernel"), None)
+    assert not config.effective_freeze_filter(("Pi0", "state_mlp_out", "kernel"), None)
+
+
 def test_save_final_checkpoint_yaml_round_trip(tmp_path):
     original = _config.TrainConfig(
         name="test",
@@ -96,3 +121,14 @@ def test_brainco_policy_io_yaml_round_trip(tmp_path):
     assert restored.data.policy_io.action_groups == ("right_arm", "right_hand")
     assert restored.data.policy_io.delta_action_groups == ("right_arm",)
     assert restored.data.policy_io.delta_mask_dims() == (7, -21)
+
+
+def test_vlash_template_round_trip():
+    config = config_io.load_train_config(_TEMPLATE_DIR / "pi05_brainco_revo3_0712_ght_56d_vlash.yaml")
+    data_config = config.data.create(config.assets_dirs, config.model)
+
+    assert config.model.state_cond is True
+    assert config.model.discrete_state_input is False
+    assert data_config.max_delay_steps == 6
+    assert data_config.use_state_ground_truth is True
+    assert data_config.shared_observation is False

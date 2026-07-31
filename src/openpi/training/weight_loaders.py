@@ -36,6 +36,7 @@ class WeightLoader(Protocol):
 @dataclasses.dataclass(frozen=True)
 class NoOpWeightLoader(WeightLoader):
     """保留随机初始化,供 ACT 从头训练等场景使用."""
+
     def load(self, params: at.Params) -> at.Params:
         return params
 
@@ -77,7 +78,7 @@ class PartialCheckpointWeightLoader(WeightLoader):
 
     params_path: str
     # shape 不匹配时允许跳过的层名正则,默认跳过动作/状态投影层.
-    skip_on_mismatch_regex: str = ".*(action_in_proj|action_out_proj|state_proj).*"
+    skip_on_mismatch_regex: str = ".*(action_in_proj|action_out_proj|state_proj|state_mlp_in|state_mlp_out).*"
 
     def load(self, params: at.Params) -> at.Params:
         # 先加载为 np.ndarray,再由训练初始化逻辑转换并按目标布局分片.
@@ -90,6 +91,7 @@ class PartialCheckpointWeightLoader(WeightLoader):
         skip_pattern = re.compile(self.skip_on_mismatch_regex)
         result = {}
         skipped_keys = []
+        missing_keys = []
 
         # 加载 shape 兼容的预训练叶子;对于明确允许发生维度变化的
         # action/state 投影层,保留目标模型自身的初始化.
@@ -113,16 +115,25 @@ class PartialCheckpointWeightLoader(WeightLoader):
                         f"Layer does not match skip_on_mismatch_regex pattern."
                     )
 
-        # 从目标模型补回缺失的 LoRA 参数和被跳过层.
+        # 从目标模型补回缺失的 LoRA/VLASH state-condition 参数和被跳过层.
+        # state_cond 层在原始 PI0.5 checkpoint 中不存在,因此仅处理 shape
+        # mismatch 还不够,也要允许 skip regex 匹配的目标参数完全缺失.
         lora_pattern = re.compile(".*lora.*")
         for k in flat_ref:
-            if k not in result and (lora_pattern.fullmatch(k) or k in skipped_keys):
+            if k not in result and (lora_pattern.fullmatch(k) or skip_pattern.fullmatch(k)):
                 result[k] = flat_ref[k]
+                if k not in skipped_keys and not lora_pattern.fullmatch(k):
+                    missing_keys.append(k)
 
         if skipped_keys:
             logger.warning(
                 f"Partially loaded checkpoint: skipped {len(skipped_keys)} layers with shape mismatches. "
                 f"These layers will use random initialization: {', '.join(skipped_keys)}"
+            )
+        if missing_keys:
+            logger.warning(
+                f"Partially loaded checkpoint: initialized {len(missing_keys)} target-only layers. "
+                f"These layers are absent from the checkpoint: {', '.join(missing_keys)}"
             )
 
         return flax.traverse_util.unflatten_dict(result, sep="/")

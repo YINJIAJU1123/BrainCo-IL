@@ -1,3 +1,5 @@
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
@@ -52,4 +54,26 @@ def test_base_spec_describes_right_arm_and_hand_policy():
         "task_key": "task",
         "task_index_key": "task_index",
         "tasks_path": "meta/tasks.parquet",
+    }
+
+
+def test_vlash_execution_spec_describes_future_state_contract():
+    train_config = SimpleNamespace(model=SimpleNamespace(state_cond=True))
+    data_config = SimpleNamespace(max_delay_steps=6, shared_observation=False)
+
+    execution = plugin._vlash_execution_spec(train_config, data_config)  # noqa: SLF001
+
+    assert execution == {
+        "schema_version": 1,
+        "mode": "vlash_async",
+        "supports_future_state": True,
+        "future_state_key": "observation.state",
+        "future_state_semantics": "predicted_state_at_chunk_handoff",
+        "future_state_space": "raw_absolute_joint_position",
+        "requires_unblended_chunk_boundaries": True,
+        "requires_low_pass_disabled": True,
+        "max_trained_delay_steps": 6,
+        "state_conditioning": "adarms",
+        "offset_sampling": "uniform_inclusive",
+        "shared_observation_training": False,
     }

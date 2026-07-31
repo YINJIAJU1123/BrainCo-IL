@@ -38,8 +38,12 @@ Filter: TypeAlias = nnx.filterlib.Filter
 FreezeStrategy: TypeAlias = Literal["none", "lora_and_action_interface", "action_interface_only"]
 
 _TRAINABLE_PARAMETER_REGEX_BY_FREEZE_STRATEGY: dict[FreezeStrategy, str] = {
-    "lora_and_action_interface": ".*(lora|action_in_proj|action_out_proj|time_mlp_in|time_mlp_out).*",
-    "action_interface_only": ".*(action_in_proj|action_out_proj|time_mlp_in|time_mlp_out).*",
+    "lora_and_action_interface": (
+        ".*(lora|action_in_proj|action_out_proj|time_mlp_in|time_mlp_out|state_proj|state_mlp_in|state_mlp_out).*"
+    ),
+    "action_interface_only": (
+        ".*(action_in_proj|action_out_proj|time_mlp_in|time_mlp_out|state_proj|state_mlp_in|state_mlp_out).*"
+    ),
 }
 
 
@@ -113,6 +117,16 @@ class DataConfig:
     # - weighted:按权重采样,部分样本可能重复或被跳过.
     multi_dataset_mode: Literal["concat", "weighted"] = "concat"
 
+    # VLASH temporal-offset augmentation.0 表示标准同步训练;N>0 时
+    # 对每条样本均匀采样 offset ∈ [0, N].
+    max_delay_steps: int = 0
+    # 官方的 shared-observation 是多 suffix 联合 attention 训练优化.
+    # 当前 JAX 路径保留该配置用于自描述,但尚不支持启用.
+    shared_observation: bool = False
+    # 为 true 时使用数据集中真实的 s_{t+offset};为 false 时与官方
+    # 默认路径一样,使用前一时刻 action 近似 future state.
+    use_state_ground_truth: bool = True
+
 
 class GroupFactory(Protocol):
     def __call__(self, model_config: _model.BaseModelConfig) -> _transforms.Group:
@@ -148,6 +162,7 @@ class ModelTransformFactory(GroupFactory):
                         _transforms.TokenizePrompt(
                             _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
                             discrete_state_input=model_config.discrete_state_input,
+                            task_action_prompt=model_config.state_cond,
                         ),
                         _transforms.PadStatesAndActions(model_config.action_dim),
                     ],
@@ -241,10 +256,24 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
     revo3_eef_joint_hand_to_joint_hand: bool = False
     # 原始数据集中的 action 键名;LeRobot loader 会在 repack transform 前使用.
     action_sequence_keys: Sequence[str] = ("action",)
+    # 字段名与 VLASH 官方训练配置保持一致.
+    max_delay_steps: int = 0
+    shared_observation: bool = False
+    # BrainCo 数据具有完整 proprioceptive state,优先使用真实 future state.
+    use_state_ground_truth: bool = True
 
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         """将 BrainCo 数据集语义展开为有序 transform 流水线."""
+        if self.max_delay_steps < 0:
+            raise ValueError("max_delay_steps must be >= 0")
+        if self.max_delay_steps > 0 and model_config.model_type != _model.ModelType.PI05:
+            raise ValueError("BrainCo VLASH temporal offsets currently require a PI0.5 model")
+        if self.shared_observation and self.max_delay_steps > 0:
+            raise NotImplementedError(
+                "shared_observation=True requires the official multi-suffix attention path, "
+                "which is not implemented in BrainCo-IL JAX yet; use shared_observation=False"
+            )
         self.policy_io.validate(model_config.action_dim)
         # 将数据集原始键映射为 transforms 期望的键.
         repack_transform = _transforms.Group(
@@ -296,12 +325,16 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
             data_transforms=data_transforms,
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
+            max_delay_steps=self.max_delay_steps,
+            shared_observation=self.shared_observation,
+            use_state_ground_truth=self.use_state_ground_truth,
         )
 
 
 @dataclasses.dataclass(frozen=True)
 class TrainConfig:
     """训练和部署流水线使用的完整、可序列化输入配置."""
+
     # 配置名称,必须唯一,用于引用该配置.
     name: tyro.conf.Suppress[str]
     # 项目名称.

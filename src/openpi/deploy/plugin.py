@@ -73,6 +73,8 @@ def describe_policy(
         asset_id=data_config.asset_id,
         policy_io=policy_io,
     )
+    if execution := _vlash_execution_spec(train_config, data_config):
+        spec["execution"] = execution
     return _deep_update(spec, overrides or {})
 
 
@@ -192,3 +194,30 @@ def _sample_kwargs(train_config, opts: dict[str, Any]) -> dict[str, Any]:
     if policy_type in ("pi0", "pi05"):
         return {"num_steps": int(opts.get("num_inference_steps", 10) or 10)}
     return {}
+
+
+def _vlash_execution_spec(train_config, data_config) -> dict[str, Any] | None:
+    """描述 checkpoint 的 VLASH future-state/异步执行语义.
+
+    policy 仍然是 PI0.5;revo_deploy 只需把交接时刻的 raw absolute
+    future state 放进标准 observation.state,模型/归一化接口无需变化.
+    """
+    max_delay_steps = int(getattr(data_config, "max_delay_steps", 0) or 0)
+    if max_delay_steps <= 0:
+        return None
+
+    model = train_config.model
+    return {
+        "schema_version": 1,
+        "mode": "vlash_async",
+        "supports_future_state": True,
+        "future_state_key": "observation.state",
+        "future_state_semantics": "predicted_state_at_chunk_handoff",
+        "future_state_space": "raw_absolute_joint_position",
+        "requires_unblended_chunk_boundaries": True,
+        "requires_low_pass_disabled": True,
+        "max_trained_delay_steps": max_delay_steps,
+        "state_conditioning": "adarms" if bool(getattr(model, "state_cond", False)) else "discrete_prompt",
+        "offset_sampling": "uniform_inclusive",
+        "shared_observation_training": bool(getattr(data_config, "shared_observation", False)),
+    }

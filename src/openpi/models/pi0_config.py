@@ -30,14 +30,21 @@ class Pi0Config(_model.BaseModelConfig):
     # - state 输入进入离散语言 token,而不是作为 suffix 中的连续输入;
     # - action expert 使用 adaRMSNorm 注入 flow matching timestep.
     pi05: bool = False
+    # 与 VLASH 官方实现一致:设置后不再把离散 state 写入 prompt,而是
+    # 将连续 state 编码为 Action Expert 的 adaRMS 条件.
+    state_cond: bool = False
     # 该字段不由模型直接读取,而是由 ModelTransformFactory 用于构建输入变换.
     discrete_state_input: bool = None  # type: ignore
 
     def __post_init__(self):
+        if self.state_cond and not self.pi05:
+            raise ValueError("state_cond is only supported for PI0.5")
         if self.max_token_len is None:
             object.__setattr__(self, "max_token_len", 200 if self.pi05 else 48)
         if self.discrete_state_input is None:
-            object.__setattr__(self, "discrete_state_input", self.pi05)
+            object.__setattr__(self, "discrete_state_input", self.pi05 and not self.state_cond)
+        if self.state_cond and self.discrete_state_input:
+            raise ValueError("state_cond=True requires discrete_state_input=False")
 
     @property
     @override

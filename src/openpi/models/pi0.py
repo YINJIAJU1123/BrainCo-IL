@@ -71,6 +71,7 @@ class Pi0(_model.BaseModel):
     def __init__(self, config: pi0_config.Pi0Config, rngs: nnx.Rngs):
         super().__init__(config.action_dim, config.action_horizon, config.max_token_len)
         self.pi05 = config.pi05
+        self.state_cond = config.state_cond
         paligemma_config = _gemma.get_config(config.paligemma_variant)
         action_expert_config = _gemma.get_config(config.action_expert_variant)
         # TODO:将 Gemma 改写为 NNX;当前先通过 bridge 接入.
@@ -97,6 +98,22 @@ class Pi0(_model.BaseModel):
         if config.pi05:
             self.time_mlp_in = nnx.Linear(action_expert_config.width, action_expert_config.width, rngs=rngs)
             self.time_mlp_out = nnx.Linear(action_expert_config.width, action_expert_config.width, rngs=rngs)
+            if config.state_cond:
+                self.state_proj = nnx.Linear(config.action_dim, action_expert_config.width, rngs=rngs)
+                self.state_mlp_in = nnx.Linear(
+                    action_expert_config.width,
+                    action_expert_config.width,
+                    rngs=rngs,
+                )
+                # 官方 VLASH 将最后一层置零,使新 condition 初始为零,
+                # 从 PI0.5 checkpoint 微调时不会立刻扰动原 time condition.
+                self.state_mlp_out = nnx.Linear(
+                    action_expert_config.width,
+                    action_expert_config.width,
+                    kernel_init=nnx.initializers.zeros_init(),
+                    bias_init=nnx.initializers.zeros_init(),
+                    rngs=rngs,
+                )
         else:
             self.state_proj = nnx.Linear(config.action_dim, action_expert_config.width, rngs=rngs)
             self.action_time_mlp_in = nnx.Linear(2 * action_expert_config.width, action_expert_config.width, rngs=rngs)
@@ -174,6 +191,13 @@ class Pi0(_model.BaseModel):
             time_emb = nnx.swish(time_emb)
             action_expert_tokens = action_tokens
             adarms_cond = time_emb
+            if self.state_cond:
+                state_emb = self.state_proj(obs.state)
+                state_emb = self.state_mlp_in(state_emb)
+                state_emb = nnx.swish(state_emb)
+                state_emb = self.state_mlp_out(state_emb)
+                state_emb = nnx.swish(state_emb)
+                adarms_cond = adarms_cond + state_emb
         else:
             # PI0 不使用 adaRMS,而是通过 MLP 融合 timestep 与 action 信息.
             time_tokens = einops.repeat(time_emb, "b emb -> b s emb", s=self.action_horizon)

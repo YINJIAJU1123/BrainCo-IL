@@ -1,0 +1,333 @@
+<mxfile host="65bd71144e" modified="2026-07-30T00:00:00.000Z" agent="Codex" version="24.7.17">
+  <diagram id="vlash-pi05-model" name="1 · VLASH + PI0.5 Training">
+    <mxGraphModel dx="1200" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="p1_title" value="&lt;b&gt;VLASH on PI0.5 — Future-State-Aware Training + Shared-Observation Fine-tuning&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=25;fontColor=#172B4D;" parent="1" vertex="1">
+          <mxGeometry x="250" y="18" width="1420" height="44" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_subtitle" value="紫色 = VLASH 必需的数据/调度改动　绿色虚线 = PI0.5 可选增强（官方 async 示例 state_cond=true）　蓝/橙主干 = PI0.5 保持不变" style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=14;fontColor=#5E6C84;" parent="1" vertex="1">
+          <mxGeometry x="260" y="62" width="1400" height="28" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_input_zone" value="&lt;b&gt;1 · VLASH training sample&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="30" y="105" width="350" height="1015" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_adapter_zone" value="&lt;b&gt;2 · Encoders / conditions&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#B3BAC5;fontColor=#344563;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="400" y="105" width="390" height="1015" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_core_zone" value="&lt;b&gt;3 · PI0.5 multi-expert Transformer · architecture unchanged · 18 paired layers&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F4F5F7;swimlaneFillColor=#FFFFFF;strokeColor=#4C9AFF;strokeWidth=2;fontColor=#0747A6;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="810" y="105" width="750" height="1015" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_output_zone" value="&lt;b&gt;4 · Velocity loss / inference&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#B3BAC5;fontColor=#344563;fontSize=15;" parent="1" vertex="1">
+          <mxGeometry x="1580" y="105" width="310" height="1015" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_obs" value="&lt;b&gt;Shared stale observation o&lt;sub&gt;t&lt;/sub&gt;&lt;/b&gt;&lt;br&gt;V RGB images + task language&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;images [B,V,3,224,224]&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#403294&quot;&gt;fixed while offset δ changes&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;strokeWidth=2;fontColor=#172B4D;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="60" y="165" width="290" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_offset" value="&lt;b&gt;Temporal-offset augmentation&lt;/b&gt;&lt;br&gt;δ ∈ {0,…,Δ&lt;sub&gt;max&lt;/sub&gt;}　N&lt;sub&gt;δ&lt;/sub&gt;=Δ&lt;sub&gt;max&lt;/sub&gt;+1&lt;br&gt;(o&lt;sub&gt;t&lt;/sub&gt;, s&lt;sub&gt;t+δ&lt;/sub&gt;) → A&lt;sub&gt;t+δ:t+δ+H−1&lt;/sub&gt;&lt;br&gt;&lt;font color=&quot;#403294&quot;&gt;state 与 action 一起平移，图像/语言不平移&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="60" y="315" width="290" height="145" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_offset_tensors" value="&lt;b&gt;All offset branches (shared-observation mode)&lt;/b&gt;&lt;br&gt;future states S: [B,N&lt;sub&gt;δ&lt;/sub&gt;,32]&lt;br&gt;future actions A: [B,N&lt;sub&gt;δ&lt;/sub&gt;,50,32]&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;paper example N&lt;sub&gt;δ&lt;/sub&gt;=5; repo YAML Δ&lt;sub&gt;max&lt;/sub&gt;=8 → N&lt;sub&gt;δ&lt;/sub&gt;=9&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#998DD9;strokeWidth=1.5;fontColor=#403294;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="60" y="485" width="290" height="135" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_flow_sample" value="&lt;b&gt;Flow Matching per offset branch&lt;/b&gt;&lt;br&gt;t: [B,N&lt;sub&gt;δ&lt;/sub&gt;]　ε: [B,N&lt;sub&gt;δ&lt;/sub&gt;,50,32]&lt;br&gt;x&lt;sub&gt;t&lt;/sub&gt; = tε + (1−t)A&lt;br&gt;u&lt;sub&gt;t&lt;/sub&gt; = ε − A&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;flow objective itself is unchanged&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="60" y="655" width="290" height="145" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_train_modes" value="&lt;b&gt;Two equivalent fine-tuning modes&lt;/b&gt;&lt;br&gt;① basic: each sample randomly chooses one δ&lt;br&gt;② efficient: pack all δ branches; encode o&lt;sub&gt;t&lt;/sub&gt; once&lt;br&gt;&lt;font color=&quot;#403294&quot;&gt;official async YAML enables mode ②&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;strokeWidth=1.5;fontColor=#403294;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="60" y="835" width="290" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_alignment_note" value="&lt;b&gt;What is learned?&lt;/b&gt;&lt;br&gt;同一个旧视觉 o&lt;sub&gt;t&lt;/sub&gt;，因 s&lt;sub&gt;t+δ&lt;/sub&gt; 不同而对应不同未来 action；迫使 policy 真正使用 robot state。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DEEBFF;strokeColor=#4C9AFF;fontColor=#0747A6;fontSize=13;spacing=7;" parent="1" vertex="1">
+          <mxGeometry x="60" y="990" width="290" height="95" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_vision" value="&lt;b&gt;Image preprocess + SigLIP&lt;/b&gt;&lt;br&gt;224×224, patch14 → 256 tokens/view&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;[B,256V,2048]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F2FF;strokeColor=#4C9AFF;strokeWidth=2;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="430" y="165" width="330" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_language" value="&lt;b&gt;Tokenizer + Gemma embedding&lt;/b&gt;&lt;br&gt;state_cond=true 时 prompt 只含 task，不含离散 state&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;[B,L&lt;sub&gt;text&lt;/sub&gt;,2048], L&lt;sub&gt;text&lt;/sub&gt;≤200&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F2FF;strokeColor=#4C9AFF;strokeWidth=2;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="430" y="300" width="330" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_prefix" value="&lt;b&gt;Shared prefix tokens — computed once&lt;/b&gt;&lt;br&gt;L&lt;sub&gt;p&lt;/sub&gt; = 256V + L&lt;sub&gt;text&lt;/sub&gt;&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;[B,L&lt;sub&gt;p&lt;/sub&gt;,2048]&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;paper: 2 images + language ≈600 tokens&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DEEBFF;strokeColor=#0065FF;strokeWidth=2;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="430" y="445" width="330" height="125" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_state_condition" value="&lt;b&gt;Optional PI0.5 state condition&lt;/b&gt;&lt;br&gt;S [B,N&lt;sub&gt;δ&lt;/sub&gt;,32]&lt;br&gt;state_proj 32→1024&lt;br&gt;MLP 1024→1024→1024 + SiLU&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;last Linear zero-initialized&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;dashed=1;fontColor=#006644;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="430" y="610" width="205" height="145" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_time_condition" value="&lt;b&gt;Flow time condition&lt;/b&gt;&lt;br&gt;t [B,N&lt;sub&gt;δ&lt;/sub&gt;]&lt;br&gt;sin/cos 1024 + time MLP&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;[B,N&lt;sub&gt;δ&lt;/sub&gt;,1024]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="650" y="610" width="110" height="145" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_cond_add" value="&lt;b&gt;adaRMS condition&lt;/b&gt;&lt;br&gt;c = time_emb + state_emb&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;[B,N&lt;sub&gt;δ&lt;/sub&gt;,1024]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="500" y="790" width="190" height="100" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_action_in" value="&lt;b&gt;action_in_proj&lt;/b&gt;&lt;br&gt;x&lt;sub&gt;t&lt;/sub&gt; [B,N&lt;sub&gt;δ&lt;/sub&gt;,50,32]&lt;br&gt;Linear(32,1024)&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;packed: [B,N&lt;sub&gt;δ&lt;/sub&gt;·50,1024]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="430" y="930" width="330" height="120" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_prefix_expert" value="&lt;b&gt;Gemma 2B Prefix Expert&lt;/b&gt;&lt;br&gt;width 2048 · MLP 16384&lt;br&gt;18 layers · own Norm/QKV/MLP&lt;br&gt;&lt;font color=&quot;#0747A6&quot;&gt;hidden [B,L&lt;sub&gt;p&lt;/sub&gt;,2048]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DEEBFF;strokeColor=#4C9AFF;strokeWidth=2;fontColor=#0747A6;fontSize=15;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="845" y="180" width="250" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_prefix_qkv" value="&lt;b&gt;Prefix Q/K/V&lt;/b&gt;&lt;br&gt;Q: 8×256&lt;br&gt;KV: 1×256&lt;br&gt;expert-specific weights" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F2FF;strokeColor=#4C9AFF;fontColor=#0747A6;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="1120" y="190" width="155" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_shared_mask" value="&lt;b&gt;VLASH shared-observation mask&lt;/b&gt;&lt;br&gt;Prefix ↔ Prefix&lt;br&gt;Suffix δ&lt;sub&gt;i&lt;/sub&gt; → Prefix + same δ&lt;sub&gt;i&lt;/sub&gt;&lt;br&gt;&lt;font color=&quot;#BF2600&quot;&gt;Suffix δ&lt;sub&gt;i&lt;/sub&gt; ✕ Suffix δ&lt;sub&gt;j&lt;/sub&gt; (i≠j)&lt;/font&gt;&lt;br&gt;all suffix branches reuse same position IDs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="1300" y="175" width="225" height="145" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_joint_attention" value="&lt;b&gt;JOINT ATTENTION SPACE — unchanged PI0.5 mechanism&lt;/b&gt;&lt;br&gt;Prefix / Action Expert 各自产生 Q/K/V，再沿 sequence positions 拼接&lt;br&gt;&lt;font color=&quot;#403294&quot;&gt;8 query heads · 1 KV head · head_dim 256&lt;/font&gt;&lt;br&gt;Prefix 不读取 noisy action；action suffix 可以读取 prefix" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=15;spacing=9;" parent="1" vertex="1">
+          <mxGeometry x="900" y="385" width="565" height="145" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_action_expert" value="&lt;b&gt;Gemma 300M Action Expert&lt;/b&gt;&lt;br&gt;width 1024 · MLP 4096&lt;br&gt;18 layers · own Norm/QKV/MLP&lt;br&gt;&lt;font color=&quot;#7A3E00&quot;&gt;hidden [B,N&lt;sub&gt;δ&lt;/sub&gt;·50,1024]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF0E0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=15;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="845" y="625" width="270" height="140" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_action_qkv" value="&lt;b&gt;Action Q/K/V&lt;/b&gt;&lt;br&gt;Q: 8×256&lt;br&gt;KV: 1×256&lt;br&gt;expert-specific weights" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="1140" y="640" width="155" height="110" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_adarms" value="&lt;b&gt;adaRMS in every Action Expert layer&lt;/b&gt;&lt;br&gt;scale / shift / gate depend on c&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;VLASH official example: c = time + future-state embedding&lt;/font&gt;&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;base PI0.5: c = time only&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;dashed=1;fontColor=#006644;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="1320" y="620" width="205" height="150" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_branch_shape" value="&lt;b&gt;Split packed suffix back into offset branches&lt;/b&gt;&lt;br&gt;[B,N&lt;sub&gt;δ&lt;/sub&gt;,50,1024]&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;each branch has independent t and state condition&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;strokeWidth=1.5;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="955" y="845" width="350" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_no_arch_change" value="&lt;b&gt;Not a new backbone&lt;/b&gt;&lt;br&gt;VLASH 没有新增 correction head、router 或另一个 Transformer；shared mask 只用于多 offset 高效训练。部署时 N&lt;sub&gt;δ&lt;/sub&gt;=1。" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE6;strokeColor=#FF5630;fontColor=#BF2600;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="900" y="990" width="565" height="90" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_action_out" value="&lt;b&gt;action_out_proj&lt;/b&gt;&lt;br&gt;Linear(1024,32)&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;v̂&lt;sub&gt;t&lt;/sub&gt; [B,N&lt;sub&gt;δ&lt;/sub&gt;,50,32]&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;fontSize=15;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="1615" y="625" width="240" height="105" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_loss" value="&lt;b&gt;Flow matching loss — unchanged&lt;/b&gt;&lt;br&gt;MSE(v̂&lt;sub&gt;t&lt;/sub&gt;, ε−A)&lt;br&gt;mask episode padding / invalid offset&lt;br&gt;average over valid δ branches" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="1615" y="775" width="240" height="125" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_inference_single" value="&lt;b&gt;Deployment model call&lt;/b&gt;&lt;br&gt;N&lt;sub&gt;δ&lt;/sub&gt;=1&lt;br&gt;input: current image o&lt;sub&gt;t&lt;/sub&gt; + rolled-forward state ŝ&lt;sub&gt;t+Δ&lt;/sub&gt;&lt;br&gt;10-step Euler flow sampling unchanged" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=14;spacing=8;" parent="1" vertex="1">
+          <mxGeometry x="1615" y="945" width="240" height="130" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_dim_note" value="&lt;b&gt;Dimension basis&lt;/b&gt;&lt;br&gt;official VLASH PI0.5 repo defaults:&lt;br&gt;H=50, max_state_dim=max_action_dim=32&lt;br&gt;VLM width=2048, Action Expert width=1024" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;fontColor=#5E6C84;fontSize=13;spacing=7;" parent="1" vertex="1">
+          <mxGeometry x="1615" y="170" width="240" height="125" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_change_summary" value="&lt;b&gt;VLASH actually changes&lt;/b&gt;&lt;br&gt;① (o&lt;sub&gt;t&lt;/sub&gt;,s&lt;sub&gt;t+δ&lt;/sub&gt;,A&lt;sub&gt;t+δ&lt;/sub&gt;) training alignment&lt;br&gt;② optional shared-prefix multi-offset packing/mask&lt;br&gt;③ async execution manager + future-state rollforward&lt;br&gt;④ optional PI0.5 state→adaRMS path" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=13;spacing=7;" parent="1" vertex="1">
+          <mxGeometry x="1615" y="335" width="240" height="180" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_footer" value="&lt;b&gt;Core distinction:&lt;/b&gt; VLASH primarily changes temporal alignment and runtime scheduling, not PI0.5's representational backbone. The state-conditioning MLP is optional in the paper, but enabled by the official PI0.5 async YAML." style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=15;fontColor=#172B4D;" parent="1" vertex="1">
+          <mxGeometry x="250" y="1160" width="1420" height="55" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_sources" value="Sources: VLASH paper arXiv:2512.01031v2; official repo mit-han-lab/vlash commit 22cbabf. Shapes on this page follow the official repo defaults; B and V remain symbolic." style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=12;fontColor=#6B778C;" parent="1" vertex="1">
+          <mxGeometry x="330" y="1220" width="1260" height="35" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p1_e_obs_vision" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#4C9AFF;strokeWidth=2;" parent="1" source="p1_obs" target="p1_vision" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_obs_lang" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#4C9AFF;strokeWidth=2;" parent="1" source="p1_obs" target="p1_language" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_offset_tensors" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6554C0;strokeWidth=2;" parent="1" source="p1_offset" target="p1_offset_tensors" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_tensors_flow" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF991F;strokeWidth=2;" parent="1" source="p1_offset_tensors" target="p1_flow_sample" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_vision_prefix" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#4C9AFF;strokeWidth=2;" parent="1" source="p1_vision" target="p1_prefix" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_lang_prefix" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#4C9AFF;strokeWidth=2;" parent="1" source="p1_language" target="p1_prefix" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_states_cond" value="future state" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#36B37E;strokeWidth=2;dashed=1;fontColor=#006644;" parent="1" source="p1_offset_tensors" target="p1_state_condition" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_t_cond" value="t" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;" parent="1" source="p1_flow_sample" target="p1_time_condition" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_xt_action" value="x&lt;sub&gt;t&lt;/sub&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;" parent="1" source="p1_flow_sample" target="p1_action_in" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_state_add" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#36B37E;strokeWidth=2;dashed=1;" parent="1" source="p1_state_condition" target="p1_cond_add" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_time_add" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF991F;strokeWidth=2;" parent="1" source="p1_time_condition" target="p1_cond_add" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_prefix_expert" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#4C9AFF;strokeWidth=2;" parent="1" source="p1_prefix" target="p1_prefix_expert" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_prefix_qkv" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#4C9AFF;strokeWidth=2;" parent="1" source="p1_prefix_expert" target="p1_prefix_qkv" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_prefix_joint" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6554C0;strokeWidth=2;" parent="1" source="p1_prefix_qkv" target="p1_joint_attention" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_mask_joint" value="mask" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6554C0;strokeWidth=2;dashed=1;fontColor=#403294;" parent="1" source="p1_shared_mask" target="p1_joint_attention" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_action_expert" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF991F;strokeWidth=2;" parent="1" source="p1_action_in" target="p1_action_expert" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_cond_adarms" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#36B37E;strokeWidth=2;dashed=1;" parent="1" source="p1_cond_add" target="p1_adarms" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_adarms_action" value="condition every layer" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#36B37E;strokeWidth=2;dashed=1;fontColor=#006644;" parent="1" source="p1_adarms" target="p1_action_expert" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_action_qkv" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF991F;strokeWidth=2;" parent="1" source="p1_action_expert" target="p1_action_qkv" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_action_joint" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6554C0;strokeWidth=2;" parent="1" source="p1_action_qkv" target="p1_joint_attention" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_joint_branch" value="split + residual" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;" parent="1" source="p1_joint_attention" target="p1_branch_shape" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_branch_out" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#36B37E;strokeWidth=2;" parent="1" source="p1_branch_shape" target="p1_action_out" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_out_loss" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#36B37E;strokeWidth=2;" parent="1" source="p1_action_out" target="p1_loss" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p1_e_target_loss" value="u&lt;sub&gt;t&lt;/sub&gt;=ε−A" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF991F;strokeWidth=2;dashed=1;fontColor=#7A3E00;" parent="1" source="p1_flow_sample" target="p1_loss" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+
+  <diagram id="vlash-async-runtime" name="2 · VLASH Async Inference">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1120" math="0" shadow="0">
+      <root>
+        <mxCell id="r0"/>
+        <mxCell id="r1" parent="r0"/>
+
+        <mxCell id="p2_title" value="&lt;b&gt;VLASH Runtime — Execute Current Chunk While Inferring the Next Chunk&lt;/b&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=25;fontColor=#172B4D;" parent="r1" vertex="1">
+          <mxGeometry x="260" y="20" width="1400" height="48" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_subtitle" value="VLASH fixes prediction–execution temporal misalignment by replacing stale state s&lt;sub&gt;t&lt;/sub&gt; with estimated execution-time state ŝ&lt;sub&gt;t+Δ&lt;/sub&gt;; the visual observation remains o&lt;sub&gt;t&lt;/sub&gt;." style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=14;fontColor=#5E6C84;" parent="r1" vertex="1">
+          <mxGeometry x="280" y="68" width="1360" height="32" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_sync_zone" value="&lt;b&gt;A · Synchronous PI0.5&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#7A869A;strokeWidth=1.5;fontColor=#344563;fontSize=15;" parent="r1" vertex="1">
+          <mxGeometry x="35" y="120" width="570" height="350" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_naive_zone" value="&lt;b&gt;B · Naive asynchronous&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#FF5630;strokeWidth=2;fontColor=#BF2600;fontSize=15;" parent="r1" vertex="1">
+          <mxGeometry x="675" y="120" width="570" height="350" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_vlash_zone" value="&lt;b&gt;C · VLASH asynchronous&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=15;" parent="r1" vertex="1">
+          <mxGeometry x="1315" y="120" width="570" height="350" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_sync_obs" value="Capture (o&lt;sub&gt;t&lt;/sub&gt;, s&lt;sub&gt;t&lt;/sub&gt;)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F2FF;strokeColor=#4C9AFF;fontColor=#0747A6;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="65" y="190" width="135" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_sync_infer" value="PI0.5 inference&lt;br&gt;&lt;font color=&quot;#5E6C84&quot;&gt;robot waits Δ steps&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE6;strokeColor=#FF5630;fontColor=#BF2600;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="235" y="180" width="150" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_sync_execute" value="Execute A&lt;sub&gt;t&lt;/sub&gt;&lt;br&gt;after inference finishes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;fontColor=#006644;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="420" y="180" width="150" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_sync_result" value="&lt;b&gt;Correct alignment, but action stall&lt;/b&gt;&lt;br&gt;reaction latency ≈ inference + execution wait" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;fontColor=#344563;fontSize=14;spacing=8;" parent="r1" vertex="1">
+          <mxGeometry x="125" y="320" width="390" height="85" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_naive_obs" value="Capture (o&lt;sub&gt;t&lt;/sub&gt;, s&lt;sub&gt;t&lt;/sub&gt;)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F2FF;strokeColor=#4C9AFF;fontColor=#0747A6;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="705" y="190" width="135" height="60" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_naive_parallel" value="Current chunk executes&lt;br&gt;∥ PI0.5 infers next chunk" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;fontColor=#7A3E00;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="875" y="180" width="165" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_naive_switch" value="At t+Δ switch to A′&lt;sub&gt;t&lt;/sub&gt;&lt;br&gt;predicted from stale s&lt;sub&gt;t&lt;/sub&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE6;strokeColor=#FF5630;fontColor=#BF2600;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="1075" y="180" width="145" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_naive_result" value="&lt;b&gt;Fast, but misaligned&lt;/b&gt;&lt;br&gt;prediction interval [t,t+K) ≠ execution interval [t+Δ,t+Δ+K)&lt;br&gt;chunk boundary can jump / become unstable" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFEBE6;strokeColor=#FF5630;fontColor=#BF2600;fontSize=14;spacing=8;" parent="r1" vertex="1">
+          <mxGeometry x="755" y="310" width="410" height="105" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_vlash_obs" value="Capture current o&lt;sub&gt;t&lt;/sub&gt;&lt;br&gt;+ know remaining old actions" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E9F2FF;strokeColor=#4C9AFF;fontColor=#0747A6;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="1345" y="180" width="145" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_vlash_roll" value="Roll state forward&lt;br&gt;s&lt;sub&gt;t&lt;/sub&gt; → ŝ&lt;sub&gt;t+Δ&lt;/sub&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="1520" y="180" width="145" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_vlash_infer" value="PI0.5(o&lt;sub&gt;t&lt;/sub&gt;, ŝ&lt;sub&gt;t+Δ&lt;/sub&gt;)&lt;br&gt;while old chunk executes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="1695" y="180" width="155" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_vlash_result" value="&lt;b&gt;Fast + aligned robot state&lt;/b&gt;&lt;br&gt;new chunk is planned for the state where it will actually start&lt;br&gt;future environment is not predicted; image remains stale o&lt;sub&gt;t&lt;/sub&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;fontSize=14;spacing=8;" parent="r1" vertex="1">
+          <mxGeometry x="1395" y="310" width="410" height="105" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_runtime_zone" value="&lt;b&gt;Runtime timeline for one chunk transition&lt;/b&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=40;fillColor=#F7F8F9;swimlaneFillColor=#FFFFFF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=16;" parent="r1" vertex="1">
+          <mxGeometry x="35" y="505" width="1850" height="380" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_time_axis" value="controller time →" style="text;html=1;align=left;verticalAlign=middle;fontSize=14;fontColor=#5E6C84;" parent="r1" vertex="1">
+          <mxGeometry x="75" y="555" width="180" height="30" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_t0" value="t" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#DEEBFF;strokeColor=#4C9AFF;fontColor=#0747A6;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="275" y="550" width="42" height="42" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_trigger" value="Trigger next inference&lt;br&gt;n_action_steps − overlap_steps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;fontColor=#403294;fontSize=13;" parent="r1" vertex="1">
+          <mxGeometry x="340" y="535" width="220" height="70" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_current_actions" value="Current chunk continues executing known remaining actions&lt;br&gt;a&lt;sub&gt;t&lt;/sub&gt;, a&lt;sub&gt;t+1&lt;/sub&gt;, …, a&lt;sub&gt;t+Δ−1&lt;/sub&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;strokeWidth=2;fontColor=#7A3E00;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="340" y="635" width="500" height="80" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_state_formula" value="&lt;b&gt;Estimate execution-time state&lt;/b&gt;&lt;br&gt;delta actions: ŝ&lt;sub&gt;t+Δ&lt;/sub&gt; = s&lt;sub&gt;t&lt;/sub&gt; + Σ&lt;sub&gt;i=0…Δ−1&lt;/sub&gt; a&lt;sub&gt;t+i&lt;/sub&gt;&lt;br&gt;absolute actions: use last scheduled action/state endpoint" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;fontSize=14;spacing=8;" parent="r1" vertex="1">
+          <mxGeometry x="875" y="615" width="365" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_background_infer" value="&lt;b&gt;Background PI0.5 inference&lt;/b&gt;&lt;br&gt;condition: (o&lt;sub&gt;t&lt;/sub&gt;, ŝ&lt;sub&gt;t+Δ&lt;/sub&gt;)&lt;br&gt;prefix prefill + 10 Euler denoise steps&lt;br&gt;produces next chunk A′&lt;sub&gt;t+Δ&lt;/sub&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3F0FF;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;fontSize=14;spacing=8;" parent="r1" vertex="1">
+          <mxGeometry x="1275" y="600" width="310" height="145" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_switch" value="t+Δ&lt;br&gt;atomic chunk switch&lt;br&gt;&lt;font color=&quot;#006644&quot;&gt;no idle stall&lt;/font&gt;" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;fontSize=13;" parent="r1" vertex="1">
+          <mxGeometry x="1640" y="600" width="120" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_next_actions" value="Execute new chunk&lt;br&gt;A′&lt;sub&gt;t+Δ:t+Δ+K−1&lt;/sub&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E3FCEF;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;fontSize=14;" parent="r1" vertex="1">
+          <mxGeometry x="1620" y="770" width="180" height="70" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_terms" value="&lt;b&gt;Symbols&lt;/b&gt;　H = predicted action horizon　K ≤ H = actions executed per chunk　Δ = inference latency in controller steps　overlap_steps = how early background inference starts" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#7A869A;fontColor=#344563;fontSize=14;spacing=8;" parent="r1" vertex="1">
+          <mxGeometry x="80" y="925" width="870" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_quant" value="&lt;b&gt;Optional action quantization q&lt;/b&gt;　groups/resamples q adjacent fine actions into a coarser command (delta: accumulate; absolute: endpoint), reducing command count and increasing execution speed. It is a deployment option, not a Transformer change." style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FFF8F0;strokeColor=#FF991F;fontColor=#7A3E00;fontSize=14;spacing=8;" parent="r1" vertex="1">
+          <mxGeometry x="985" y="925" width="835" height="75" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_footer" value="Required VLASH runtime change = asynchronous chunk manager + future-state rollforward. No RTC-style action inpainting and no extra correction network are run at deployment." style="text;html=1;align=center;verticalAlign=middle;resizable=0;fontSize=15;fontColor=#172B4D;" parent="r1" vertex="1">
+          <mxGeometry x="330" y="1030" width="1260" height="42" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="p2_e_sync_1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#7A869A;strokeWidth=2;" parent="r1" source="p2_sync_obs" target="p2_sync_infer" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e_sync_2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#7A869A;strokeWidth=2;" parent="r1" source="p2_sync_infer" target="p2_sync_execute" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e_naive_1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF5630;strokeWidth=2;" parent="r1" source="p2_naive_obs" target="p2_naive_parallel" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e_naive_2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF5630;strokeWidth=2;" parent="r1" source="p2_naive_parallel" target="p2_naive_switch" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e_vlash_1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6554C0;strokeWidth=2;" parent="r1" source="p2_vlash_obs" target="p2_vlash_roll" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e_vlash_2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6554C0;strokeWidth=2;" parent="r1" source="p2_vlash_roll" target="p2_vlash_infer" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e_trigger_actions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#FF991F;strokeWidth=2;" parent="r1" source="p2_trigger" target="p2_current_actions" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e_actions_state" value="known actions" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;" parent="r1" source="p2_current_actions" target="p2_state_formula" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e_state_infer" value="ŝ&lt;sub&gt;t+Δ&lt;/sub&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6554C0;strokeWidth=2;fontColor=#403294;" parent="r1" source="p2_state_formula" target="p2_background_infer" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e_infer_switch" value="next chunk ready" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#36B37E;strokeWidth=2;fontColor=#006644;" parent="r1" source="p2_background_infer" target="p2_switch" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="p2_e_switch_next" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#36B37E;strokeWidth=2;" parent="r1" source="p2_switch" target="p2_next_actions" edge="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -15,12 +15,23 @@ class PaligemmaTokenizer:
         with path.open("rb") as file:
             self._tokenizer = sentencepiece.SentencePieceProcessor(model_proto=file.read())
 
-    def tokenize(self, prompt: str, state: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
+    def tokenize(
+        self,
+        prompt: str,
+        state: np.ndarray | None = None,
+        *,
+        task_action_prompt: bool = False,
+    ) -> tuple[np.ndarray, np.ndarray]:
         cleaned_text = prompt.strip().replace("_", " ").replace("\n", " ")
         if state is not None:
             discretized_state = np.digitize(state, bins=np.linspace(-1, 1, 257)[:-1]) - 1
             state_str = " ".join(map(str, discretized_state))
             full_prompt = f"Task: {cleaned_text}, State: {state_str};\nAction: "
+            tokens = self._tokenizer.encode(full_prompt, add_bos=True)
+        elif task_action_prompt:
+            # VLASH 官方 PI0.5 state_cond 路径只在 prompt 中保留 task,
+            # 连续 state 由 Action Expert 的 adaRMS condition 接收.
+            full_prompt = f"Task: {cleaned_text};\nAction: "
             tokens = self._tokenizer.encode(full_prompt, add_bos=True)
         else:
             tokens = self._tokenizer.encode(cleaned_text, add_bos=True) + self._tokenizer.encode("\n")
