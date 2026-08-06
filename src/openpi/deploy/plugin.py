@@ -120,7 +120,7 @@ def _base_spec(
         "state_dim": policy_io.dataset_state_dim,
         "task_key": "task",
         "task_index_key": "task_index",
-        "tasks_path": "meta/tasks.parquet",
+        "tasks_path": "meta/tasks.jsonl",
     }
     if policy_io.dataset_state_indices is not None:
         dataset["state_indices"] = list(policy_io.dataset_state_indices)
@@ -207,6 +207,7 @@ def _vlash_execution_spec(train_config, data_config) -> dict[str, Any] | None:
         return None
 
     model = train_config.model
+    use_state_ground_truth = bool(getattr(data_config, "use_state_ground_truth", True))
     return {
         "schema_version": 1,
         "mode": "vlash_async",
@@ -217,6 +218,9 @@ def _vlash_execution_spec(train_config, data_config) -> dict[str, Any] | None:
         "requires_unblended_chunk_boundaries": True,
         "requires_low_pass_disabled": True,
         "max_trained_delay_steps": max_delay_steps,
+        "training_future_state_source": (
+            "ground_truth" if use_state_ground_truth else "action_proxy"
+        ),
         "state_conditioning": "adarms" if bool(getattr(model, "state_cond", False)) else "discrete_prompt",
         "offset_sampling": "uniform_inclusive",
         "shared_observation_training": bool(getattr(data_config, "shared_observation", False)),

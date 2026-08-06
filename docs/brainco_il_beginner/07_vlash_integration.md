@@ -177,11 +177,20 @@ execution:
   requires_unblended_chunk_boundaries: true
   requires_low_pass_disabled: true
   max_trained_delay_steps: 6
+  training_future_state_source: ground_truth
   state_conditioning: adarms
 ```
 
 revo-deploy 应发送未归一化的 raw absolute 56D future state。BrainCo-IL
 plugin 继续负责 BrainCoInputs、Normalize 和模型输入变换。
+
+`training_future_state_source` 必须与部署 future-state 来源一致：
+
+- `ground_truth`：dataset source 读取触发帧之后 `planned_offset_steps`
+  对应的真实 state；live source 将已调度 action endpoint 转换到模型的
+  observation-state 关节顺序后作为预测 future state。
+- `action_proxy`：训练与部署都直接使用 action endpoint proxy，不执行
+  action-to-observation 顺序转换。
 
 当前 revo-deploy 握手约定只暴露两个运行项:
 
@@ -191,5 +200,7 @@ plugin 继续负责 BrainCoInputs、Normalize 和模型输入变换。
 VLASH 模式保留 chunk 内从 policy rate 到 control rate 的线性插值,但关闭
 startup transition、跨 chunk boundary blend 和 ActionWriter low-pass。
 live 与 dataset observation source 都可异步执行。dataset 模式第一次从
-`t` 前进 `H-overlap` 帧取得触发时刻图像,之后每次前进 `H` 帧;模型 state
-仍由 Actor 使用当前 chunk 的末帧 action 覆盖。
+`t` 前进 `H-overlap` 帧取得触发时刻图像,之后每次前进 `H` 帧。GT 训练的
+checkpoint 使用 dataset 的 `state[t+planned_offset]`；live 模式使用按
+observation-state 顺序重排后的当前 chunk 末帧 action。action-proxy 训练的
+checkpoint 则在两种 source 下都沿用末帧 action proxy。

@@ -53,13 +53,17 @@ def test_base_spec_describes_right_arm_and_hand_policy():
         "state_dim": 28,
         "task_key": "task",
         "task_index_key": "task_index",
-        "tasks_path": "meta/tasks.parquet",
+        "tasks_path": "meta/tasks.jsonl",
     }
 
 
 def test_vlash_execution_spec_describes_future_state_contract():
     train_config = SimpleNamespace(model=SimpleNamespace(state_cond=True))
-    data_config = SimpleNamespace(max_delay_steps=6, shared_observation=False)
+    data_config = SimpleNamespace(
+        max_delay_steps=6,
+        shared_observation=False,
+        use_state_ground_truth=True,
+    )
 
     execution = plugin._vlash_execution_spec(train_config, data_config)  # noqa: SLF001
 
@@ -73,7 +77,21 @@ def test_vlash_execution_spec_describes_future_state_contract():
         "requires_unblended_chunk_boundaries": True,
         "requires_low_pass_disabled": True,
         "max_trained_delay_steps": 6,
+        "training_future_state_source": "ground_truth",
         "state_conditioning": "adarms",
         "offset_sampling": "uniform_inclusive",
         "shared_observation_training": False,
     }
+
+
+def test_vlash_execution_spec_describes_action_proxy_training():
+    train_config = SimpleNamespace(model=SimpleNamespace(state_cond=True))
+    data_config = SimpleNamespace(
+        max_delay_steps=6,
+        shared_observation=False,
+        use_state_ground_truth=False,
+    )
+
+    execution = plugin._vlash_execution_spec(train_config, data_config)  # noqa: SLF001
+
+    assert execution["training_future_state_source"] == "action_proxy"
