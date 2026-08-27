@@ -1,8 +1,24 @@
 import jax
+import torch
 
 from openpi.models import pi0_config
 from openpi.training import config as _config
 from openpi.training import data_loader as _data_loader
+
+
+def test_norm_stats_dataset_skips_video_decoding():
+    dataset = object.__new__(_data_loader._NormStatsLeRobotDataset)  # noqa: SLF001
+
+    images = dataset._query_videos(  # noqa: SLF001
+        {
+            "observation.images.cam_high": [0.0],
+            "observation.images.cam_left_wrist": [0.0],
+        },
+        ep_idx=3,
+    )
+
+    assert set(images) == {"observation.images.cam_high", "observation.images.cam_left_wrist"}
+    assert all(torch.equal(image, torch.zeros((3, 1, 1))) for image in images.values())
 
 
 def test_torch_data_loader():

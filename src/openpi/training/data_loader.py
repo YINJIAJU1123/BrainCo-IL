@@ -57,6 +57,14 @@ def _create_lerobot_dataset_compat(*args, **kwargs) -> lerobot_dataset.LeRobotDa
     return dataset_cls(*args, **kwargs)
 
 
+class _NormStatsLeRobotDataset(lerobot_dataset.LeRobotDataset):
+    """归一化统计专用数据集:保留时序查询,但不解码无关的视频帧."""
+
+    def _query_videos(self, query_timestamps: dict[str, list[float]], ep_idx: int) -> dict[str, torch.Tensor]:
+        del ep_idx
+        return {key: torch.zeros((3, 1, 1), dtype=torch.float32) for key in query_timestamps}
+
+
 class Dataset(Protocol[T_co]):
     """支持随机访问的数据集接口."""
 
@@ -129,11 +137,17 @@ def _create_sequence_dataset(
     dataset_meta: lerobot_dataset.LeRobotDatasetMetadata,
     data_config: _config.DataConfig,
     action_horizon: int,
+    decode_videos: bool,
 ) -> lerobot_dataset.LeRobotDataset:
     delta_timestamps = {
         key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
     }
-    return _create_lerobot_dataset_compat(repo_id, delta_timestamps=delta_timestamps)
+    dataset_cls = lerobot_dataset.LeRobotDataset if decode_videos else _NormStatsLeRobotDataset
+    return _create_lerobot_dataset_compat(
+        repo_id,
+        delta_timestamps=delta_timestamps,
+        dataset_cls=dataset_cls,
+    )
 
 
 class ConcatLeRobotDataset(Dataset):
@@ -251,9 +265,17 @@ class MultiLeRobotDataset(Dataset):
 
 
 def create_torch_dataset(
-    data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig
+    data_config: _config.DataConfig,
+    action_horizon: int,
+    model_config: _model.BaseModelConfig,
+    *,
+    decode_videos: bool = True,
 ) -> Dataset:
-    """打开 LeRobot 数据集,并按时间戳请求未来 action chunk."""
+    """打开 LeRobot 数据集,并按时间戳请求未来 action chunk.
+
+    ``decode_videos=False`` 仅用于归一化统计;统计只消费 state/actions,
+    因而可跳过耗时的视频解码,同时保留 LeRobot 的时序和边界处理.
+    """
     repo_id = data_config.repo_id
 
     # 检查是否启用多数据集训练.
@@ -277,6 +299,7 @@ def create_torch_dataset(
                 dataset_meta=dataset_meta,
                 data_config=data_config,
                 action_horizon=action_horizon,
+                decode_videos=decode_videos,
             )
 
             # 按需创建该数据集对应的 prompt transform.
@@ -314,6 +337,7 @@ def create_torch_dataset(
         dataset_meta=dataset_meta,
         data_config=data_config,
         action_horizon=action_horizon,
+        decode_videos=decode_videos,
     )
 
     if data_config.prompt_from_task:

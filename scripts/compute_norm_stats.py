@@ -32,7 +32,14 @@ def create_torch_dataloader(
 ) -> tuple[_data_loader.Dataset, int]:
     if data_config.repo_id is None:
         raise ValueError("Data config must have a repo_id")
-    dataset = _data_loader.create_torch_dataset(data_config, action_horizon, model_config)
+    # Norm stats only consume state/actions. Keep the canonical LeRobot temporal
+    # queries and transforms, but avoid decoding camera videos for every sample.
+    dataset = _data_loader.create_torch_dataset(
+        data_config,
+        action_horizon,
+        model_config,
+        decode_videos=False,
+    )
     dataset = _data_loader.TransformedDataset(
         dataset,
         [
