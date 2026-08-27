@@ -43,7 +43,6 @@
 | 4 | [PI0.5 模型架构](04_pi05_architecture.md) | VLM 和 Action Expert 各自处理什么？ |
 | 5 | [TrainState、JIT 与 checkpoint](05_train_state_jit_checkpoint.md) | 参数如何初始化、更新和恢复？ |
 | 6 | [28D 与 56D](06_action_dimensions_28d_56d.md) | 改动作维度时到底改了什么？ |
-| 7 | [VLASH 集成](07_vlash_integration.md) | temporal offset、future state 和部署 contract 如何对应？ |
 
 JAX 的更多概念可继续阅读 [JAX 在 BrainCo-IL 中的作用](../jax_in_brainco_il.md)。
 

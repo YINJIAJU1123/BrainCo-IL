@@ -1,86 +1,73 @@
 # BrainCo-IL
 
-BrainCo-IL is the BrainCo training and policy-runtime repository derived from
-[OpenPI](https://github.com/Physical-Intelligence/openpi). It intentionally keeps
-only the paths used by BrainCo robots:
-
-- JAX PI0 / PI0.5 and ACT models
-- LeRobot dataset loading
-- BrainCo state, image, action, and delta transforms
-- partial pretrained-weight loading
-- self-describing `train_config.yaml` checkpoints
-- the external deploy plugin used by `revo_deploy`
-
-Upstream robot examples, PI0-FAST, RLDS/DROID, the PyTorch PI0 implementation,
-WebSocket serving, and the old BrainCo ROS2 example are not part of this repository.
-
-## Joint Layout
-
-The default 56D layout is:
-
-```text
-left_arm(7) + right_arm(7) + left_hand(21) + right_hand(21)
-```
-
-The authoritative layout is serialized by
-`BrainCoPolicyIOConfig` in each checkpoint. Reduced policies such as right-arm
-28D use the same group-based contract.
-
-## Install
-
-```bash
-GIT_LFS_SKIP_SMUDGE=1 uv sync
-```
+BrainCo training and inference repository derived from
+[OpenPI](https://github.com/Physical-Intelligence/openpi). The maintained
+production paths are JAX PI0/PI0.5, ACT, LeRobot 2.1 datasets, BrainCo data
+transforms, checkpointing, and the Policy Inferencer process used by `revo_deploy`.
 
 ## Train
 
-Start from one of the YAML files in
-`src/openpi/training/training_config_template/`:
+Copy one concise example and edit it:
 
 ```bash
-uv run python scripts/compute_norm_stats.py \
-  --config-path \
-  src/openpi/training/training_config_template/pi05_brainco_revo3_0712_ght_56d.yaml
+cp configs/experiments/pi05.example.yaml my_experiment.yaml
+# Change only `base: pi05` to `base: act` to select ACT.
 
-uv run python scripts/train.py \
-  src/openpi/training/training_config_template/pi05_brainco_revo3_0712_ght_56d.yaml
+uv run python scripts/compute_norm_stats.py --config-path my_experiment.yaml
+uv run python scripts/train.py my_experiment.yaml
 ```
 
-Simple scalar values can also be overridden from the CLI when starting from the
-`pi05_brainco_56d` or `act_brainco_56d` recipe.
+The human-authored YAML selects dataset, semantic groups, action horizon and
+training hyperparameters. It never contains joint names or numeric state/action
+slices. Those are resolved from the LeRobot dataset's `meta/info.json`.
 
-Training writes the fully resolved config to the run directory and every step
-checkpoint as `train_config.yaml`. That file, the checkpoint parameters, and
-normalization assets are the complete deployment artifact.
-
-## Deploy Contract
-
-`revo_deploy` imports:
+Each saved step contains:
 
 ```text
-openpi.deploy.plugin
+params/
+assets/
+train_config.yaml       # GENERATED / DO NOT EDIT / hash checked
+policy_contract.json    # GENERATED / DO NOT EDIT / hash checked
 ```
 
-The plugin reads `train_config.yaml`, reports the observation/action contract,
-loads the JAX model and checkpoint, and owns model-specific preprocessing. The
-deploy side sends raw RGB `uint8` HWC images and the configured joint state.
+`train_config.yaml` rebuilds the exact preprocessing, normalization, model and
+unnormalization pipeline. `policy_contract.json` describes named inputs and
+grouped absolute action outputs for deployment. Regenerate these artifacts;
+manual edits are rejected.
 
-See:
+## Policy Inferencer
 
-- `vla_trainning_deploy_handshake.md`
-- `docs/brainco_il_beginner/README.md`
-- `docs/jax_in_brainco_il.md`
-- `src/openpi/deploy/plugin.py`
+The only production deployment entry point is an independent process:
 
-## Core Layout
+```bash
+uv run python -m openpi.deploy.policy_inferencer --checkpoint /path/to/checkpoint
+```
+
+It implements framed protocol v1:
 
 ```text
-scripts/train.py                         training loop
-scripts/compute_norm_stats.py            dataset normalization statistics
-src/openpi/models/                       PI0/PI0.5 and ACT networks
-src/openpi/training/                     config, loader, optimizer, checkpoints
-src/openpi/policies/brainco_policy.py    BrainCo observation/action transforms
-src/openpi/deploy/plugin.py              external deployment boundary
+DESCRIBE -> CONTRACT
+LOAD -> READY
+INFER -> RESULT
+RESET / CLOSE / ERROR
+```
+
+The inferencer has no ROS dependency. It accepts named joint groups and raw RGB
+images, orders/selects features using checkpoint metadata, runs the full model
+pipeline, and returns named grouped `float32[T, D]` absolute actions. PI0.5 and
+ACT use the same boundary; `revo_deploy` does not know the model type.
+
+## Core layout
+
+```text
+configs/experiments/                  concise pi05/act examples
+scripts/train.py                      training loop and generated artifacts
+src/openpi/models/                    PI0/PI0.5 and ACT
+src/openpi/training/                  config, data, optimizer, checkpoint IO
+src/openpi/policies/brainco_policy.py BrainCo transforms and feature selection
+src/openpi/deploy/contract.py         generated PolicyContract
+src/openpi/deploy/policy_inferencer.py subprocess inference boundary
+src/openpi/deploy/protocol.py         framed ndarray transport
 ```
 
 ## License

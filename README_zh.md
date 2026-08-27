@@ -1,89 +1,36 @@
 # BrainCo-IL
 
-BrainCo-IL 是基于 [OpenPI](https://github.com/Physical-Intelligence/openpi)
-改造的 BrainCo 训练与策略运行仓库。当前只保留实际使用的核心链路：
-
-- JAX PI0 / PI0.5 与 ACT 模型
-- LeRobot 数据加载
-- BrainCo state、图像、action 与 delta transform
-- 预训练权重的部分加载
-- checkpoint 内自描述的 `train_config.yaml`
-- 供 `revo_deploy` 调用的 external deploy plugin
-
-上游 Aloha、DROID、Libero 示例、PI0-FAST、RLDS、PyTorch PI0、
-WebSocket policy server 和旧 BrainCo ROS2 部署方案均已删除。
-
-## 关节顺序
-
-默认 56D 顺序为：
-
-```text
-left_arm(7) + right_arm(7) + left_hand(21) + right_hand(21)
-```
-
-真正的输入输出语义由 checkpoint 中序列化的
-`BrainCoPolicyIOConfig` 决定。right-arm 28D 等裁剪模型也使用同一套
-group contract。
-
-## 安装
-
-```bash
-GIT_LFS_SKIP_SMUDGE=1 uv sync
-```
+本仓库保留 BrainCo 使用的 PI0/PI0.5、ACT、LeRobot 2.1 数据流水线、训练与
+独立 Policy Inferencer 推理进程。
 
 ## 训练
 
-优先从 `src/openpi/training/training_config_template/` 中选择 YAML：
+```bash
+cp configs/experiments/pi05.example.yaml my_experiment.yaml
+# 将 base: pi05 改成 base: act 即切换 ACT
+
+uv run python scripts/compute_norm_stats.py --config-path my_experiment.yaml
+uv run python scripts/train.py my_experiment.yaml
+```
+
+简洁 experiment YAML 只写 dataset、语义 groups、action horizon 和训练参数；
+joint name 与数值切片统一从 LeRobot `meta/info.json` 自动解析。
+
+每个 step 自动生成 `train_config.yaml` 与 `policy_contract.json`。二者都标记
+`generated: true`、`do_not_edit: true` 并带 hash，禁止手改。前者只供
+BrainCo-IL 重建训练时的数据/模型流水线，后者供跨仓握手。
+
+## 部署
+
+生产入口只有独立 Python 推理进程：
 
 ```bash
-uv run python scripts/compute_norm_stats.py \
-  --config-path \
-  src/openpi/training/training_config_template/pi05_brainco_revo3_0712_ght_56d.yaml
-
-uv run python scripts/train.py \
-  src/openpi/training/training_config_template/pi05_brainco_revo3_0712_ght_56d.yaml
+uv run python -m openpi.deploy.policy_inferencer --checkpoint /path/to/checkpoint
 ```
 
-也可以从 `pi05_brainco_56d` 或 `act_brainco_56d` 基准 recipe 出发，
-通过 CLI 覆写 batch size、action horizon、学习率和训练步数等标量。
+Policy Inferencer 实现 DESCRIBE、LOAD/READY、INFER/RESULT、RESET/CLOSE。它接收带
+joint name 的 observation，在仓库内部完成选维、图像预处理、归一化、模型
+推理和反归一化，跨仓只返回按 group 打包的 absolute action chunk。
 
-训练会把最终展开后的完整配置写入 run 根目录和每个 step checkpoint
-中的 `train_config.yaml`。部署需要的完整产物只有：
-
-```text
-train_config.yaml + params/ + assets/
-```
-
-## 部署握手
-
-`revo_deploy` 只需要导入：
-
-```text
-openpi.deploy.plugin
-```
-
-plugin 读取 checkpoint 的 `train_config.yaml`，描述输入输出 contract，
-加载 JAX 模型与权重，并负责模型相关预处理。部署端只发送原始 RGB
-`uint8` HWC 图像和约定顺序的 joint state。
-
-详细说明见：
-
-- `vla_trainning_deploy_handshake.md`
-- `docs/brainco_il_beginner/README.md`
-- `docs/jax_in_brainco_il.md`
-- `src/openpi/deploy/plugin.py`
-
-## 核心目录
-
-```text
-scripts/train.py                         训练主循环
-scripts/compute_norm_stats.py            数据归一化统计
-src/openpi/models/                       PI0/PI0.5 与 ACT 网络
-src/openpi/training/                     配置、数据加载、优化器、checkpoint
-src/openpi/policies/brainco_policy.py    BrainCo 输入输出 transform
-src/openpi/deploy/plugin.py              外部部署边界
-```
-
-## 许可证
-
-Apache-2.0，继承自上游 OpenPI。
+PI0.5 与 ACT 共用完全相同的部署协议，`revo_deploy` 不解析模型类型，也不
+包含任何 JAX/PyTorch/LeRobot runtime。

@@ -103,7 +103,7 @@ data_config = config.data.create(config.assets_dirs, config.model)
 [`brainco_policy.py`](../../src/openpi/policies/brainco_policy.py) 集中保存 BrainCo 机器人的数据语义：
 
 - `BrainCoPolicyIOConfig`：描述 state/action 由哪些关节组组成。
-- `BrainCoRevo3EefJointHandToJointHand`：将特定 70D 布局转换成 56D。
+- `SelectPolicyFeatures`：使用 LeRobot metadata 自动解析出的 indices 选维。
 - `BrainCoInputs`：把相机、state、prompt 转成模型统一字段。
 - `BrainCoOutputs`：推理时把模型 action 转回 BrainCo 输出格式。
 
@@ -114,21 +114,31 @@ state_groups  = right_arm(7) + right_hand(21)
 action_groups = right_arm(7) + right_hand(21)
 ```
 
-它不会自动把任意 70D 数据变成任意 28D。实际裁剪必须由明确的 transform 完成，或者数据集本身已经是 28D。
+新 experiment 中的精确 joint names、维度和 indices 都从 LeRobot
+`meta/info.json` 自动解析，不需要用户维护数值切片。
 
-## 6. 当前 28D 配置的展开结果
+## 6. 单侧 28D 配置的展开结果
 
-以 [`0716_pi05_28D_slow_right28_lora_vlm_only.yaml`](../../src/openpi/training/training_config_template/0716_pi05_28D_slow_right28_lora_vlm_only.yaml) 为例：
+简洁 experiment 只需选择：
+
+```yaml
+base: pi05
+policy:
+  groups: [right_arm, right_hand]
+  action_horizon: 16
+```
+
+加载后会根据 dataset metadata 自动展开为：
 
 ```text
 model.action_dim       = 28
 model.action_horizon   = 16
 model.max_token_len    = 256
 data.policy_io         = right_arm + right_hand
-extra_delta_transform = true
 delta_action_groups    = right_arm
 ```
 
-这表示右臂 7 维使用 delta action，右手 21 维保留 absolute action。
+训练内部默认对手臂使用 delta transform、对手保持 absolute；推理 output
+transform 会恢复成 absolute action，跨仓协议永远不暴露 delta。
 
 下一章继续看最终的 `DataConfig` 如何真正产生 batch。
