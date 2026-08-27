@@ -2093,7 +2093,7 @@ requires-dist = [
     { name = "polars", specifier = ">=1.30.0" },
     { name = "rich", specifier = ">=14.0.0" },
     { name = "sentencepiece", specifier = ">=0.2.0" },
-    { name = "swanlab", specifier = ">=0.8.4" },
+    { name = "swanlab", specifier = ">=0.9.0" },
     { name = "torch", specifier = "==2.7.1" },
     { name = "tqdm-loggable", specifier = ">=0.2" },
     { name = "treescope", specifier = ">=0.1.7" },
@@ -2447,6 +2447,12 @@ wheels = [
 ]
 
 [[package]]
+name = "pwinput"
+version = "1.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4b/c9/f6d03c2214c282251baa38c6be08f5b9f81f1ea488716cd2335e7e190b58/pwinput-1.0.3.tar.gz", hash = "sha256:ca1a8bd06e28872d751dbd4132d8637127c25b408ea3a349377314a5491426f3", size = 4433, upload-time = "2023-02-16T17:04:14.592Z" }
+
+[[package]]
 name = "pyarrow"
 version = "24.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2637,6 +2643,30 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/f3/91/9c6ee907786a473bf81c5f53cf703ba0957b23ab84c264080fb5a450416f/pyparsing-3.3.2.tar.gz", hash = "sha256:c777f4d763f140633dcb6d8a3eda953bf7a214dc4eff598413c070bcdc117cbc", size = 6851574, upload-time = "2026-01-21T03:57:59.36Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/10/bd/c038d7cc38edc1aa5bf91ab8068b63d4308c66c4c8bb3cbba7dfbc049f9c/pyparsing-3.3.2-py3-none-any.whl", hash = "sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d", size = 122781, upload-time = "2026-01-21T03:57:55.912Z" },
+]
+
+[[package]]
+name = "pyroaring"
+version = "1.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/e4/975f0fa77fc3590820b4a3ac49704644b389795409bc12eb91729f845812/pyroaring-1.0.3.tar.gz", hash = "sha256:cd7392d1c010c9e41c11c62cd0610c8852e7e9698b1f7f6c2fcdefe50e7ef6da", size = 188688, upload-time = "2025-10-09T09:08:22.448Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/3c/f6534844b02e2505ccdc9aae461c9838ab96f72b5688c045448761735512/pyroaring-1.0.3-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:678d31fc24e82945a1bfb14816c77823983382ffea76985d494782aa2f058427", size = 1923181, upload-time = "2025-10-09T09:06:56.897Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/82/9f1a85ba33e3d89b9cdb8183fb2fd2f25720d10742dd8827508ccccc13ae/pyroaring-1.0.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7d815f624e0285db3669f673d1725cb754b120ec70d0032d7c7166103a96c96d", size = 2113222, upload-time = "2025-10-09T09:06:58.388Z" },
+    { url = "https://files.pythonhosted.org/packages/a7/f8/4d4340971cbc1379f987c847080bcb7f9765a57e122f392c3a3485c9587e/pyroaring-1.0.3-cp311-cp311-manylinux_2_24_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:57fd5b80dacb8e888402b6b7508a734c6a527063e4e24e882ff2e0fd90721ada", size = 1837385, upload-time = "2025-10-09T09:06:59.449Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/58/d14cc561685e4c224af26b4fdb4f6c7e643294ac5a4b29f178b5cbb71af1/pyroaring-1.0.3-cp311-cp311-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:ab26a7a45a0bb46c00394d1a60a9f2d57c220f84586e30d59b39784b0f94aee6", size = 1856170, upload-time = "2025-10-09T09:07:00.608Z" },
+    { url = "https://files.pythonhosted.org/packages/d1/d2/d2d9790c373f6438d4d0958bc4c79f3dc77826d8553743ff3f64acdc9ab3/pyroaring-1.0.3-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:9232f3f606315d59049c128154100fd05008d5c5c211e48b21848cd41ee64d26", size = 2909282, upload-time = "2025-10-09T09:07:02.124Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/28/4b2277982302b5b406998064ca1eaef1a79e4ea87185f511e33e7a7e3511/pyroaring-1.0.3-cp311-cp311-musllinux_1_2_armv7l.whl", hash = "sha256:f34b44b3ec3df97b978799f2901fefb2a48d367496fd1cde3cc5fe8b3bc13510", size = 2701034, upload-time = "2025-10-09T09:07:03.403Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/91/b2340193825fa2431cf735f0ecb23206fb31f386fecca38336935a294513/pyroaring-1.0.3-cp311-cp311-musllinux_1_2_i686.whl", hash = "sha256:25a83ec6bac3106568bd3fdd316f0fee52aa0be8c72da565ad02b10ae7905924", size = 3028962, upload-time = "2025-10-09T09:07:05.558Z" },
+    { url = "https://files.pythonhosted.org/packages/07/ea/ad79073cc5d8dcca35d1a955bb886d96905e9dacc58d1971fda012a5ad18/pyroaring-1.0.3-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:c17d4ec53b5b6b333d9a9515051213a691293ada785dc8c025d3641482597ed3", size = 3152109, upload-time = "2025-10-09T09:07:06.887Z" },
+    { url = "https://files.pythonhosted.org/packages/86/9e/b00c38a7e62a73e152055f593595c37152e61fc2896fd11538a7c71fbe4e/pyroaring-1.0.3-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:f2b2eb8bd1c35c772994889be9f7dda09477475d7aa1e2af9ab4ef18619326f6", size = 1869251, upload-time = "2025-10-09T09:07:14.584Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/33/f32d00ca105b66303deab43d027c3574c8ade8525dac0e5b50a9fb4d1b76/pyroaring-1.0.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d31f4c1c906f1af14ce61a3959d04a14a64c594f8a768399146a45bbd341f21f", size = 2071551, upload-time = "2025-10-09T09:07:15.713Z" },
+    { url = "https://files.pythonhosted.org/packages/5d/89/e953cae181ba4c7523334855a1ca0ae8eeea3cee8d7cd39c56bd99709d3f/pyroaring-1.0.3-cp312-cp312-manylinux_2_24_armv7l.manylinux_2_31_armv7l.whl", hash = "sha256:53be988fc86698d56c11049bfe5113a2f6990adb1fa2782b29636509808b6aa7", size = 1781071, upload-time = "2025-10-09T09:07:17.19Z" },
+    { url = "https://files.pythonhosted.org/packages/fa/db/65d4be532e68b62a84a9c89b24d0a1394f452f484fa29392142d9a3b9c48/pyroaring-1.0.3-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:7df84d223424523b19a23781f4246cc247fd6d821e1bc0853c2f25669136f7d0", size = 1795670, upload-time = "2025-10-09T09:07:18.524Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/9e/684ea0568ce7d30fc4e01ad1c666e9ce1a5b1702fa630231f4f6bdb96539/pyroaring-1.0.3-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:34a781f1f9766897f63ef18be129827340ae37764015b83fdcff1efb9e29136d", size = 2849305, upload-time = "2025-10-09T09:07:20.388Z" },
+    { url = "https://files.pythonhosted.org/packages/7c/fd/d7773a2adf91f45d8924197954c66b1694325afd2f27e02edaac07338402/pyroaring-1.0.3-cp312-cp312-musllinux_1_2_armv7l.whl", hash = "sha256:1f414343b4ed0756734328cdf2a91022fc54503769e3f8d79bd0b672ea815a16", size = 2692843, upload-time = "2025-10-09T09:07:22.042Z" },
+    { url = "https://files.pythonhosted.org/packages/13/72/b8a99ba138eebd8ff9bf8d15f3942e9e43e8e45723e2e6b7b09e542b7448/pyroaring-1.0.3-cp312-cp312-musllinux_1_2_i686.whl", hash = "sha256:d16ae185c72dc64f76335dbe53e53a892e78115adc92194957d1b7ef74d230b9", size = 2983440, upload-time = "2025-10-09T09:07:23.419Z" },
+    { url = "https://files.pythonhosted.org/packages/ca/94/e6ed1f682d850e039c71b2032bacdefc5082dc809796cf34b9e6f24c604d/pyroaring-1.0.3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:f888447bf22dde7759108bfe6dfbeb6bbb61b14948de9c4cb6843c4dd57e2215", size = 3117542, upload-time = "2025-10-09T09:07:25.104Z" },
 ]
 
 [[package]]
@@ -3010,7 +3040,7 @@ wheels = [
 
 [[package]]
 name = "swanlab"
-version = "0.8.4"
+version = "0.9.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
@@ -3019,9 +3049,11 @@ dependencies = [
     { name = "platformdirs" },
     { name = "protobuf" },
     { name = "psutil" },
+    { name = "pwinput" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyecharts" },
+    { name = "pyroaring" },
     { name = "pyyaml" },
     { name = "requests" },
     { name = "rich" },
@@ -3030,9 +3062,9 @@ dependencies = [
     { name = "watchdog" },
     { name = "wrapt" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/05/b4f6ac1e7bf2868e01fb367368b7968d55018783d0d23da7340663461b65/swanlab-0.8.4.tar.gz", hash = "sha256:81089d319133341e00bb0bb602c2ca2a2a94c64373498dd40e7ad804cea4c89a", size = 14758408, upload-time = "2026-06-29T08:33:38.379Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/4d/24/2f759ee7cb9c4cd5b4158d5e1d8662a2eac6e8d6800f4e7a37100f8d9620/swanlab-0.9.8.tar.gz", hash = "sha256:37ba1aafcca41fd5c10c20c79f620503ebbcf1e1f1281c2bb1af6bae7478b47a", size = 14846427, upload-time = "2026-08-25T16:18:34.368Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ce/a4/566ec4b4b9bf3d57a82772e3281a8344c1843a5cd14e158f1962c5896c80/swanlab-0.8.4-py3-none-any.whl", hash = "sha256:a096c98d3a72e50ab2939214123e1fcdd2660dfc2ee1963d362111dd815a47c3", size = 495241, upload-time = "2026-06-29T08:33:36.71Z" },
+    { url = "https://files.pythonhosted.org/packages/ca/2d/fb9e7f4c9b91d5926984964907f2bd67241b4a203eeba1b893e0d9181c0f/swanlab-0.9.8-py3-none-any.whl", hash = "sha256:5e373be16a455488430359846fe7f308b977b5eee29feb7203477770b7fabe86", size = 519782, upload-time = "2026-08-25T16:18:32.614Z" },
 ]
 
 [[package]]
