@@ -3,11 +3,11 @@ import numpy as np
 from openpi.training import weight_loaders
 
 
-def test_partial_loader_initializes_target_only_state_condition_layers(monkeypatch):
+def test_partial_loader_initializes_allowed_target_only_layers(monkeypatch):
     reference = {
         "Pi0": {
             "base": {"kernel": np.zeros((2, 2), dtype=np.float32)},
-            "state_mlp_out": {"kernel": np.zeros((2, 2), dtype=np.float32)},
+            "action_out_proj": {"kernel": np.zeros((2, 2), dtype=np.float32)},
         }
     }
     checkpoint = {
@@ -22,6 +22,6 @@ def test_partial_loader_initializes_target_only_state_condition_layers(monkeypat
 
     assert np.array_equal(loaded["Pi0"]["base"]["kernel"], checkpoint["Pi0"]["base"]["kernel"])
     assert np.array_equal(
-        loaded["Pi0"]["state_mlp_out"]["kernel"],
-        reference["Pi0"]["state_mlp_out"]["kernel"],
+        loaded["Pi0"]["action_out_proj"]["kernel"],
+        reference["Pi0"]["action_out_proj"]["kernel"],
     )

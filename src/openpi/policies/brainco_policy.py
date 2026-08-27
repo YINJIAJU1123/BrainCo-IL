@@ -27,6 +27,13 @@ class BrainCoPolicyIOConfig:
     delta_action_groups: tuple[str, ...] = ("left_arm", "right_arm")
     dataset_state_dim: int = 70
     dataset_state_indices: tuple[int, ...] | None = tuple(range(14, 70))
+    # New concise experiments resolve these from LeRobot metadata. ``None``
+    # keeps old configs compatible by applying the state selection to actions.
+    dataset_action_dim: int | None = None
+    dataset_action_indices: tuple[int, ...] | None = None
+    # Automatically resolved from LeRobot feature names for new experiments.
+    # The defaults keep existing Revo3 checkpoints loadable.
+    group_dims: dict[str, int] = dataclasses.field(default_factory=dict)
 
     @property
     def state_dim(self) -> int:
@@ -37,6 +44,8 @@ class BrainCoPolicyIOConfig:
         return sum(self.group_dim(group) for group in self.action_groups)
 
     def group_dim(self, group: str) -> int:
+        if group in self.group_dims:
+            return int(self.group_dims[group])
         try:
             return JOINT_GROUP_DIMS[group]
         except KeyError as exc:
@@ -78,6 +87,22 @@ class BrainCoPolicyIOConfig:
                 or max(self.dataset_state_indices, default=-1) >= self.dataset_state_dim
             ):
                 raise ValueError(f"dataset_state_indices must be within [0, {self.dataset_state_dim})")
+        dataset_action_dim = self.dataset_action_dim or self.dataset_state_dim
+        if dataset_action_dim <= 0:
+            raise ValueError(f"dataset_action_dim must be > 0, got {self.dataset_action_dim}")
+        if self.dataset_action_indices is not None:
+            if len(self.dataset_action_indices) != self.action_dim:
+                raise ValueError(
+                    "dataset_action_indices length must match policy action_dim: "
+                    f"{len(self.dataset_action_indices)} vs {self.action_dim}"
+                )
+            if len(set(self.dataset_action_indices)) != len(self.dataset_action_indices):
+                raise ValueError("dataset_action_indices contains duplicate indices")
+            if (
+                min(self.dataset_action_indices, default=0) < 0
+                or max(self.dataset_action_indices, default=-1) >= dataset_action_dim
+            ):
+                raise ValueError(f"dataset_action_indices must be within [0, {dataset_action_dim})")
 
 
 def _validate_unique_groups(name: str, groups: tuple[str, ...]) -> None:
@@ -88,6 +113,37 @@ def _validate_unique_groups(name: str, groups: tuple[str, ...]) -> None:
     for group in groups:
         if group not in JOINT_GROUP_DIMS:
             raise ValueError(f"{name} contains unsupported group {group!r}; expected one of {tuple(JOINT_GROUP_DIMS)}")
+
+
+@dataclasses.dataclass(frozen=True)
+class SelectPolicyFeatures(transforms.DataTransformFn):
+    """Select model features using indices resolved from LeRobot metadata.
+
+    The selection is a generated checkpoint detail. Users select semantic
+    groups in the experiment YAML and never maintain numeric slices.
+    """
+
+    state_indices: tuple[int, ...]
+    action_indices: tuple[int, ...]
+
+    @staticmethod
+    def _select(value: np.ndarray, indices: tuple[int, ...], key: str) -> np.ndarray:
+        value = np.asarray(value)
+        if value.shape[-1] == len(indices):
+            return value
+        if not indices or value.shape[-1] <= max(indices):
+            raise ValueError(
+                f"{key} has dim {value.shape[-1]}, cannot select generated indices {indices}"
+            )
+        return value[..., np.asarray(indices, dtype=np.int64)]
+
+    def __call__(self, data: dict) -> dict:
+        data["observation/state"] = self._select(
+            data["observation/state"], self.state_indices, "observation/state"
+        )
+        if "actions" in data:
+            data["actions"] = self._select(data["actions"], self.action_indices, "actions")
+        return data
 
 
 def make_brainco_example() -> dict:

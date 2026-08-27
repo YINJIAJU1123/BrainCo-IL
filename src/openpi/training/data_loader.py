@@ -12,7 +12,6 @@ from collections.abc import Iterator, Sequence
 import logging
 import multiprocessing
 import os
-import random
 import typing
 from typing import Protocol, SupportsIndex, TypeVar
 
@@ -124,118 +123,6 @@ class FakeDataset(Dataset):
         return self._num_samples
 
 
-def _query_indices_with_offset(
-    delta_indices: dict[str, list[int]],
-    *,
-    idx: int,
-    ep_start: int,
-    ep_end: int,
-    offset: int,
-) -> tuple[dict[str, list[int]], dict[str, torch.BoolTensor]]:
-    """按 VLASH offset 平移 LeRobot 的序列查询,并生成边界 mask."""
-    query_indices = {
-        key: [max(ep_start, min(ep_end - 1, idx + delta + offset)) for delta in deltas]
-        for key, deltas in delta_indices.items()
-    }
-    padding = {
-        f"{key}_is_pad": torch.BoolTensor(
-            [(idx + delta + offset < ep_start) | (idx + delta + offset >= ep_end) for delta in deltas]
-        )
-        for key, deltas in delta_indices.items()
-    }
-    return query_indices, padding
-
-
-class VLASHLeRobotDataset(lerobot_dataset.LeRobotDataset):
-    """官方 VLASH 随机 temporal-offset 数据语义的 BrainCo 适配.
-
-    图像和 task 始终取锚点 t;每次访问均匀采样 offset∈[0, max_delay_steps],
-    action chunk 平移到 t+offset,同时把 state 替换为 s_{t+offset}.
-    """
-
-    def __init__(
-        self,
-        *args,
-        max_delay_steps: int,
-        use_state_ground_truth: bool,
-        **kwargs,
-    ):
-        self.max_delay_steps = max_delay_steps
-        self.use_state_ground_truth = use_state_ground_truth
-        self._last_offset = 0
-        super().__init__(*args, **kwargs)
-
-        if self.delta_indices is None:
-            raise ValueError("VLASH training requires delta_timestamps for action chunks")
-
-        all_deltas = [delta for deltas in self.delta_indices.values() for delta in deltas]
-        min_delta = min(all_deltas, default=0)
-        max_delta = max(all_deltas, default=0)
-        valid_indices: list[int] = []
-        episode_starts = np.asarray(self.episode_data_index["from"])
-        episode_ends = np.asarray(self.episode_data_index["to"])
-        for ep_start, ep_end in zip(episode_starts, episode_ends, strict=True):
-            # 当前 train_step 没有 action padding mask.只保留对所有可能
-            # offset 都能提供完整 action chunk 的锚点,避免 padded target 进 loss.
-            valid_start = int(ep_start) - min(0, min_delta)
-            valid_end = int(ep_end) - max(0, max_delta + self.max_delay_steps)
-            valid_indices.extend(range(valid_start, valid_end))
-
-        if not valid_indices:
-            raise ValueError(
-                "No complete VLASH samples remain; each episode must contain more than "
-                f"max_delay_steps({self.max_delay_steps}) + max_action_delta({max_delta}) frames"
-            )
-        self._valid_indices = np.asarray(valid_indices, dtype=np.int64)
-        logging.info(
-            "VLASH temporal offsets keep %d/%d complete anchors (max_delay_steps=%d)",
-            len(self._valid_indices),
-            len(self.hf_dataset),
-            self.max_delay_steps,
-        )
-
-    def _get_query_indices(self, idx: int, ep_idx: int):
-        ep_start = int(self.episode_data_index["from"][ep_idx].item())
-        ep_end = int(self.episode_data_index["to"][ep_idx].item())
-        offset = random.randint(0, self.max_delay_steps) if self.max_delay_steps > 0 else 0
-        self._last_offset = offset
-        return _query_indices_with_offset(
-            self.delta_indices,
-            idx=idx,
-            ep_start=ep_start,
-            ep_end=ep_end,
-            offset=offset,
-        )
-
-    def __getitem__(self, index: SupportsIndex) -> dict:
-        idx = int(self._valid_indices[index.__index__()])
-        item = super().__getitem__(idx)
-        offset = self._last_offset
-        if offset <= 0:
-            return item
-
-        ep_idx = int(item["episode_index"].item())
-        ep_start = int(self.episode_data_index["from"][ep_idx].item())
-        ep_end = int(self.episode_data_index["to"][ep_idx].item())
-        if self.use_state_ground_truth:
-            future_idx = max(ep_start, min(ep_end - 1, idx + offset))
-            future_state = self.hf_dataset[future_idx]["observation.state"]
-        else:
-            prev_idx = max(ep_start, min(ep_end - 1, idx + offset - 1))
-            future_state = self.hf_dataset[prev_idx]["action"]
-            if item["observation.state"].shape != future_state.shape:
-                raise ValueError(
-                    "VLASH action-proxy future state requires matching state/action shapes; "
-                    "set use_state_ground_truth=True for this dataset"
-                )
-
-        item["observation.state"] = future_state
-        return item
-
-    def __len__(self) -> int:
-        return len(self._valid_indices)
-
-
 def _create_sequence_dataset(
     repo_id: str,
     *,
@@ -246,15 +133,7 @@ def _create_sequence_dataset(
     delta_timestamps = {
         key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
     }
-    if data_config.max_delay_steps <= 0:
-        return _create_lerobot_dataset_compat(repo_id, delta_timestamps=delta_timestamps)
-    return _create_lerobot_dataset_compat(
-        repo_id,
-        delta_timestamps=delta_timestamps,
-        dataset_cls=VLASHLeRobotDataset,
-        max_delay_steps=data_config.max_delay_steps,
-        use_state_ground_truth=data_config.use_state_ground_truth,
-    )
+    return _create_lerobot_dataset_compat(repo_id, delta_timestamps=delta_timestamps)
 
 
 class ConcatLeRobotDataset(Dataset):
@@ -450,7 +329,8 @@ def transform_dataset(dataset: Dataset, data_config: _config.DataConfig, *, skip
         if data_config.norm_stats is None:
             raise ValueError(
                 "Normalization stats not found. "
-                "Make sure to run `scripts/compute_norm_stats.py --config-name=<your-config>`."
+                "Run `scripts/compute_norm_stats.py --config-path experiment.yaml` "
+                "with the same concise experiment file."
             )
         norm_stats = data_config.norm_stats
 

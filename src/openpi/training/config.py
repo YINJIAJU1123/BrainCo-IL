@@ -39,10 +39,10 @@ FreezeStrategy: TypeAlias = Literal["none", "lora_and_action_interface", "action
 
 _TRAINABLE_PARAMETER_REGEX_BY_FREEZE_STRATEGY: dict[FreezeStrategy, str] = {
     "lora_and_action_interface": (
-        ".*(lora|action_in_proj|action_out_proj|time_mlp_in|time_mlp_out|state_proj|state_mlp_in|state_mlp_out).*"
+        ".*(lora|action_in_proj|action_out_proj|time_mlp_in|time_mlp_out|state_proj).*"
     ),
     "action_interface_only": (
-        ".*(action_in_proj|action_out_proj|time_mlp_in|time_mlp_out|state_proj|state_mlp_in|state_mlp_out).*"
+        ".*(action_in_proj|action_out_proj|time_mlp_in|time_mlp_out|state_proj).*"
     ),
 }
 
@@ -117,17 +117,6 @@ class DataConfig:
     # - weighted:按权重采样,部分样本可能重复或被跳过.
     multi_dataset_mode: Literal["concat", "weighted"] = "concat"
 
-    # VLASH temporal-offset augmentation.0 表示标准同步训练;N>0 时
-    # 对每条样本均匀采样 offset ∈ [0, N].
-    max_delay_steps: int = 0
-    # 官方的 shared-observation 是多 suffix 联合 attention 训练优化.
-    # 当前 JAX 路径保留该配置用于自描述,但尚不支持启用.
-    shared_observation: bool = False
-    # 为 true 时使用数据集中真实的 s_{t+offset};为 false 时与官方
-    # 默认路径一样,使用前一时刻 action 近似 future state.
-    use_state_ground_truth: bool = True
-
-
 class GroupFactory(Protocol):
     def __call__(self, model_config: _model.BaseModelConfig) -> _transforms.Group:
         """创建 transform 组."""
@@ -162,7 +151,6 @@ class ModelTransformFactory(GroupFactory):
                         _transforms.TokenizePrompt(
                             _tokenizer.PaligemmaTokenizer(model_config.max_token_len),
                             discrete_state_input=model_config.discrete_state_input,
-                            task_action_prompt=model_config.state_cond,
                         ),
                         _transforms.PadStatesAndActions(model_config.action_dim),
                     ],
@@ -256,24 +244,9 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
     revo3_eef_joint_hand_to_joint_hand: bool = False
     # 原始数据集中的 action 键名;LeRobot loader 会在 repack transform 前使用.
     action_sequence_keys: Sequence[str] = ("action",)
-    # 字段名与 VLASH 官方训练配置保持一致.
-    max_delay_steps: int = 0
-    shared_observation: bool = False
-    # BrainCo 数据具有完整 proprioceptive state,优先使用真实 future state.
-    use_state_ground_truth: bool = True
-
     @override
     def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
         """将 BrainCo 数据集语义展开为有序 transform 流水线."""
-        if self.max_delay_steps < 0:
-            raise ValueError("max_delay_steps must be >= 0")
-        if self.max_delay_steps > 0 and model_config.model_type != _model.ModelType.PI05:
-            raise ValueError("BrainCo VLASH temporal offsets currently require a PI0.5 model")
-        if self.shared_observation and self.max_delay_steps > 0:
-            raise NotImplementedError(
-                "shared_observation=True requires the official multi-suffix attention path, "
-                "which is not implemented in BrainCo-IL JAX yet; use shared_observation=False"
-            )
         self.policy_io.validate(model_config.action_dim)
         # 将数据集原始键映射为 transforms 期望的键.
         repack_transform = _transforms.Group(
@@ -292,7 +265,18 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
         )
 
         input_transforms = []
-        if self.revo3_eef_joint_hand_to_joint_hand:
+        if self.policy_io.dataset_state_indices is not None:
+            input_transforms.append(
+                brainco_policy.SelectPolicyFeatures(
+                    state_indices=self.policy_io.dataset_state_indices,
+                    action_indices=(
+                        self.policy_io.dataset_action_indices
+                        if self.policy_io.dataset_action_indices is not None
+                        else self.policy_io.dataset_state_indices
+                    ),
+                )
+            )
+        elif self.revo3_eef_joint_hand_to_joint_hand:
             input_transforms.append(
                 brainco_policy.BrainCoRevo3EefJointHandToJointHand(
                     arm_dof=self.arm_dof,
@@ -325,9 +309,6 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
             data_transforms=data_transforms,
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
-            max_delay_steps=self.max_delay_steps,
-            shared_observation=self.shared_observation,
-            use_state_ground_truth=self.use_state_ground_truth,
         )
 
 
@@ -446,93 +427,6 @@ class TrainConfig:
 
 # 在代码中需要按名称获取配置时,请使用 `get_config`.
 _CONFIGS = [
-    #
-    # BrainCo 双臂双灵巧手 56D 基础配方.
-    # 数据集路径、action horizon、batch size、保存间隔和学习率等实验参数,
-    # 应通过 CLI/YAML 覆盖传入.展开后的 TrainConfig 会以 train_config.yaml
-    # 保存进每个 checkpoint,并作为部署端的唯一配置来源.
-    #
-    TrainConfig(
-        name="pi05_brainco_56d",
-        project_name="imitation",
-        checkpoint_base_dir="./checkpoints",
-        model=pi0_config.Pi0Config(
-            pi05=True,
-            action_dim=56,
-            action_horizon=16,
-            max_token_len=256,
-        ),
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_56d",
-            base_config=DataConfig(
-                prompt_from_task=True,
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id="<path_to_lerobot_dataset>",
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-            arm_dof=7,
-            hand_dof=21,
-            head_camera_key="observation.images.cam_head",
-            revo3_eef_joint_hand_to_joint_hand=True,
-        ),
-        weight_loader=weight_loaders.PartialCheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
-        ema_decay=None,
-        num_train_steps=40_000,
-        batch_size=16,
-        num_workers=8,
-        log_interval=10,
-        save_interval=4000,
-        keep_period=4000,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=5e-5,
-            decay_steps=40_000,
-            decay_lr=5e-6,
-        ),
-    ),
-    TrainConfig(
-        name="act_brainco_56d",
-        project_name="imitation",
-        checkpoint_base_dir="./checkpoints",
-        model=act_config.ACTConfig(action_dim=56, action_horizon=100),
-        ema_decay=None,
-        data=LeRobotBrainCoDataConfig(
-            repo_id="brainco_56d",
-            base_config=DataConfig(
-                prompt_from_task=True,
-                lerobot_datasets=(
-                    LeRobotDataset(
-                        repo_id="<path_to_lerobot_dataset>",
-                        weight=1.0,
-                    ),
-                ),
-                multi_dataset_mode="concat",
-            ),
-            extra_delta_transform=True,
-            arm_dof=7,
-            hand_dof=21,
-            head_camera_key="observation.images.cam_head",
-            revo3_eef_joint_hand_to_joint_hand=True,
-        ),
-        # ACT 从头训练,不加载预训练 checkpoint.
-        num_train_steps=40_000,
-        batch_size=16,
-        num_workers=8,
-        log_interval=10,
-        save_interval=4000,
-        keep_period=4000,
-        lr_schedule=_optimizer.CosineDecaySchedule(
-            warmup_steps=1_000,
-            peak_lr=1e-4,
-            decay_steps=40_000,
-            decay_lr=1e-5,
-        ),
-    ),
     #
     # 调试配置.
     #

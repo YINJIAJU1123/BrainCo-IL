@@ -42,6 +42,7 @@ import optax
 import swanlab
 import tqdm_loggable.auto as tqdm
 
+import openpi.deploy.contract as _deploy_contract
 import openpi.models.model as _model
 import openpi.shared.array_typing as at
 import openpi.shared.nnx_utils as nnx_utils
@@ -276,6 +277,7 @@ def main(config: _config.TrainConfig):
     )
     if jax.process_index() == 0:
         _config_io.save_train_config(config, config.checkpoint_dir)
+        _deploy_contract.save_policy_contract(config, config.checkpoint_dir)
     init_swanlab(config, resuming=resuming, enabled=config.wandb_enabled)
 
     # DataLoader 在 CPU 上通过 LeRobot/PyTorch 解码并执行配置好的 transforms,
@@ -350,6 +352,7 @@ def main(config: _config.TrainConfig):
             checkpoint_manager.wait_until_finished()
             if jax.process_index() == 0:
                 _config_io.save_train_config(config, config.checkpoint_dir / str(step))
+                _deploy_contract.save_policy_contract(config, config.checkpoint_dir / str(step))
 
     logging.info("Waiting for checkpoint manager to finish")
     checkpoint_manager.wait_until_finished()

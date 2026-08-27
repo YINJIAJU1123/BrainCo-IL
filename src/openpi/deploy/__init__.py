@@ -1,1 +1,1 @@
-"""Deployment plugin entrypoints for external runtimes."""
+"""Checkpoint contract and model-agnostic Policy Inferencer protocol."""

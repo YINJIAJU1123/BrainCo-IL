@@ -1,0 +1,19 @@
+# Human-authored experiment file. This file may be edited.
+schema_version: 1
+base: act
+
+experiment:
+  name: act_revotron_revo3_56d_ah32
+  dataset: /path/to/lerobot_v2.1_dataset
+  project_name: imitation
+
+policy:
+  groups: [left_arm, right_arm, left_hand, right_hand]
+  action_horizon: 32
+
+training:
+  batch_size: 16
+  num_workers: 8
+  num_steps: 20000
+  save_interval: 4000
+  keep_period: 4000

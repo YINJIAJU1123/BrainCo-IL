@@ -115,9 +115,7 @@ class PartialCheckpointWeightLoader(WeightLoader):
                         f"Layer does not match skip_on_mismatch_regex pattern."
                     )
 
-        # 从目标模型补回缺失的 LoRA/VLASH state-condition 参数和被跳过层.
-        # state_cond 层在原始 PI0.5 checkpoint 中不存在,因此仅处理 shape
-        # mismatch 还不够,也要允许 skip regex 匹配的目标参数完全缺失.
+        # 从目标模型补回 LoRA 参数和明确允许重新初始化的目标层.
         lora_pattern = re.compile(".*lora.*")
         for k in flat_ref:
             if k not in result and (lora_pattern.fullmatch(k) or skip_pattern.fullmatch(k)):
