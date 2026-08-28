@@ -27,6 +27,8 @@ import openpi.transforms as _transforms
 
 T_co = TypeVar("T_co", covariant=True)
 
+_DEFAULT_LEROBOT_TOLERANCE_S = 2e-4
+
 
 def _patch_torch_stack_for_datasets_column() -> None:
     """兼容旧版 LeRobot 与新版 HuggingFace datasets 的 Column 对象."""
@@ -54,6 +56,17 @@ def _create_lerobot_dataset_compat(*args, **kwargs) -> lerobot_dataset.LeRobotDa
     """在安装兼容补丁后创建 LeRobotDataset."""
     dataset_cls = kwargs.pop("dataset_cls", lerobot_dataset.LeRobotDataset)
     kwargs.setdefault("video_backend", os.environ.get("OPENPI_LEROBOT_VIDEO_BACKEND", "pyav"))
+    try:
+        tolerance_s = float(os.environ.get("OPENPI_LEROBOT_TOLERANCE_S", _DEFAULT_LEROBOT_TOLERANCE_S))
+    except ValueError as exc:
+        raise ValueError("OPENPI_LEROBOT_TOLERANCE_S must be a positive finite float") from exc
+    if not np.isfinite(tolerance_s) or tolerance_s <= 0:
+        raise ValueError("OPENPI_LEROBOT_TOLERANCE_S must be a positive finite float")
+    # LeRobot v2.1 stores timestamps as float32. Beyond 1024 seconds its ULP can
+    # make a correct 30 Hz interval differ by ~1.14e-4 s, just above LeRobot's
+    # historical 1e-4 default. Keep a narrow compatibility margin while allowing
+    # callers to override it explicitly for datasets with different requirements.
+    kwargs.setdefault("tolerance_s", tolerance_s)
     return dataset_cls(*args, **kwargs)
 
 

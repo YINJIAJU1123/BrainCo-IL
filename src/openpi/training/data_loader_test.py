@@ -1,9 +1,44 @@
 import jax
+import pytest
 import torch
 
 from openpi.models import pi0_config
 from openpi.training import config as _config
 from openpi.training import data_loader as _data_loader
+
+
+def test_lerobot_dataset_uses_float32_safe_timestamp_tolerance(monkeypatch):
+    captured = {}
+
+    def dataset_cls(*args, **kwargs):
+        captured.update(kwargs)
+        return args
+
+    monkeypatch.delenv("OPENPI_LEROBOT_TOLERANCE_S", raising=False)
+    _data_loader._create_lerobot_dataset_compat("dataset", dataset_cls=dataset_cls)  # noqa: SLF001
+
+    assert captured["tolerance_s"] == pytest.approx(2e-4)
+
+
+def test_lerobot_dataset_timestamp_tolerance_can_be_overridden(monkeypatch):
+    captured = {}
+
+    def dataset_cls(*args, **kwargs):
+        captured.update(kwargs)
+        return args
+
+    monkeypatch.setenv("OPENPI_LEROBOT_TOLERANCE_S", "0.0005")
+    _data_loader._create_lerobot_dataset_compat("dataset", dataset_cls=dataset_cls)  # noqa: SLF001
+
+    assert captured["tolerance_s"] == pytest.approx(5e-4)
+
+
+@pytest.mark.parametrize("value", ["not-a-number", "0", "-0.1", "nan", "inf"])
+def test_lerobot_dataset_rejects_invalid_timestamp_tolerance(monkeypatch, value):
+    monkeypatch.setenv("OPENPI_LEROBOT_TOLERANCE_S", value)
+
+    with pytest.raises(ValueError, match="positive finite float"):
+        _data_loader._create_lerobot_dataset_compat("dataset", dataset_cls=lambda *args, **kwargs: None)  # noqa: SLF001
 
 
 def test_norm_stats_dataset_skips_video_decoding():
