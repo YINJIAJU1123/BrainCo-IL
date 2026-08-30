@@ -35,13 +35,28 @@ def serve(checkpoint: str | Path) -> None:
     contract = load_policy_contract(checkpoint)
     train_config = None
     policy = None
+    inference_strategy = "standard"
+    rtc_config = None
+    rtc_initial_delay_steps = 0
+    rtc_warmed = False
 
     while True:
         message = recv_frame(sys.stdin.buffer)
         message_type = str(message.get("type", "")).upper()
         try:
             if message_type == "DESCRIBE":
-                send_frame(sys.stdout.buffer, {"type": "CONTRACT", "contract": contract})
+                send_frame(
+                    sys.stdout.buffer,
+                    {
+                        "type": "CONTRACT",
+                        "contract": contract,
+                        "capabilities": {
+                            "inference_strategies": ["standard", "rtc"],
+                            "rtc_modes": ["guided"],
+                            "rtc_schedules": ["exp"],
+                        },
+                    },
+                )
             elif message_type == "LOAD":
                 if policy is None:
                     # Keep DESCRIBE lightweight: importing JAX/model modules is
@@ -57,6 +72,9 @@ def serve(checkpoint: str | Path) -> None:
                         repack_transforms=transforms.Group(inputs=(_ValidateImages(),)),
                         sample_kwargs=_sample_kwargs(train_config),
                     )
+                    inference_strategy, rtc_config, rtc_initial_delay_steps = _parse_inference_config(
+                        message.get("inference_config"), policy, train_config
+                    )
                     _warmup_if_requested(policy, contract, message)
                 send_frame(
                     sys.stdout.buffer,
@@ -64,6 +82,7 @@ def serve(checkpoint: str | Path) -> None:
                         "type": "READY",
                         "checkpoint_id": contract["checkpoint_id"],
                         "contract_hash": contract["contract_hash"],
+                        "inference_strategy": inference_strategy,
                     },
                 )
             elif message_type == "INFER":
@@ -71,7 +90,31 @@ def serve(checkpoint: str | Path) -> None:
                     raise RuntimeError("inferencer is not loaded; send LOAD first")
                 started = time.perf_counter()
                 observation = _build_policy_observation(message["observation"], contract)
-                result = policy.infer(observation)
+                rtc_context = message.get("rtc_context")
+                if inference_strategy == "rtc" and rtc_context is not None:
+                    previous_actions = np.asarray(rtc_context.get("prev_chunk_left_over"), dtype=np.float32)
+                    if previous_actions.size > 0:
+                        result = policy.infer_rtc(
+                            observation,
+                            previous_actions=previous_actions,
+                            inference_delay=int(rtc_context.get("predicted_delay_steps", 0)),
+                            rtc_config=rtc_config,
+                        )
+                    else:
+                        result = policy.infer(observation)
+                else:
+                    result = policy.infer(observation)
+                if inference_strategy == "rtc" and not rtc_warmed:
+                    # The first request has no previous chunk.  Compile the RTC
+                    # VJP path before the first chunk is released to the actor,
+                    # while startup is still stationary, and discard its output.
+                    policy.infer_rtc(
+                        observation,
+                        previous_actions=np.asarray(result["actions"], dtype=np.float32),
+                        inference_delay=rtc_initial_delay_steps,
+                        rtc_config=rtc_config,
+                    )
+                    rtc_warmed = True
                 actions = np.asarray(result["actions"], dtype=np.float32)
                 grouped = _group_actions(actions, contract)
                 timing = dict(result.get("policy_timing", {}) or {})
@@ -160,6 +203,31 @@ def _sample_kwargs(train_config) -> dict[str, Any]:
     if str(train_config.model.model_type.value) in ("pi0", "pi05"):
         return {"num_steps": 10}
     return {}
+
+
+def _parse_inference_config(payload: Any, policy, train_config):
+    payload = dict(payload or {})
+    strategy = str(payload.get("strategy", "standard")).strip().lower()
+    if strategy not in ("standard", "rtc"):
+        raise ValueError(f"unsupported inference strategy: {strategy!r}")
+    if strategy == "standard":
+        return strategy, None, 0
+    if str(train_config.model.model_type.value) not in ("pi0", "pi05") or not policy.supports_rtc:
+        raise RuntimeError("inference-time RTC is only supported for PI0/PI0.5 policies")
+
+    from openpi.policies.rtc import RTCConfig  # noqa: PLC0415
+
+    rtc_payload = dict(payload.get("rtc", {}) or {})
+    rtc_config = RTCConfig(
+        prefix_horizon=int(rtc_payload.get("prefix_horizon", 8)),
+        max_guidance_weight=float(rtc_payload.get("max_guidance_weight", 5.0)),
+        schedule=str(rtc_payload.get("schedule", "exp")),
+    )
+    rtc_config.validate(int(train_config.model.action_horizon))
+    initial_delay_steps = int(rtc_payload.get("initial_delay_steps", 0))
+    if initial_delay_steps < 0:
+        raise ValueError("RTC initial_delay_steps must be >= 0")
+    return strategy, rtc_config, initial_delay_steps
 
 
 def _warmup_if_requested(policy, contract: dict[str, Any], message: dict[str, Any]) -> None:
