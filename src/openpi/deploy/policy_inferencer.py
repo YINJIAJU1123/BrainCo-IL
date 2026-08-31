@@ -30,8 +30,10 @@ class _ValidateImages:
         return data
 
 
-def serve(checkpoint: str | Path) -> None:
+def serve(checkpoint: str | Path, *, protocol_in=None, protocol_out=None) -> None:
     checkpoint = Path(checkpoint).expanduser().resolve()
+    protocol_in = sys.stdin.buffer if protocol_in is None else protocol_in
+    protocol_out = sys.stdout.buffer if protocol_out is None else protocol_out
     contract = load_policy_contract(checkpoint)
     train_config = None
     policy = None
@@ -41,19 +43,20 @@ def serve(checkpoint: str | Path) -> None:
     rtc_warmed = False
 
     while True:
-        message = recv_frame(sys.stdin.buffer)
+        message = recv_frame(protocol_in)
         message_type = str(message.get("type", "")).upper()
         try:
             if message_type == "DESCRIBE":
+                strategies = list(contract.get("inference_strategies", ["standard", "rtc"]))
                 send_frame(
-                    sys.stdout.buffer,
+                    protocol_out,
                     {
                         "type": "CONTRACT",
                         "contract": contract,
                         "capabilities": {
-                            "inference_strategies": ["standard", "rtc"],
-                            "rtc_modes": ["guided"],
-                            "rtc_schedules": ["exp"],
+                            "inference_strategies": strategies,
+                            "rtc_modes": ["guided"] if "rtc" in strategies else [],
+                            "rtc_schedules": ["exp"] if "rtc" in strategies else [],
                         },
                     },
                 )
@@ -65,6 +68,7 @@ def serve(checkpoint: str | Path) -> None:
                     from openpi.policies import policy_config  # noqa: PLC0415
                     from openpi.training import config_io  # noqa: PLC0415
 
+                    config_io.validate_checkpoint_id(checkpoint, contract["checkpoint_id"])
                     train_config = config_io.load_train_config(checkpoint)
                     policy = policy_config.create_trained_policy(
                         train_config,
@@ -77,7 +81,7 @@ def serve(checkpoint: str | Path) -> None:
                     )
                     _warmup_if_requested(policy, contract, message)
                 send_frame(
-                    sys.stdout.buffer,
+                    protocol_out,
                     {
                         "type": "READY",
                         "checkpoint_id": contract["checkpoint_id"],
@@ -120,24 +124,25 @@ def serve(checkpoint: str | Path) -> None:
                 timing = dict(result.get("policy_timing", {}) or {})
                 timing["inferencer_total_ms"] = (time.perf_counter() - started) * 1000.0
                 send_frame(
-                    sys.stdout.buffer,
+                    protocol_out,
                     {
                         "type": "RESULT",
                         "request_id": int(message["request_id"]),
+                        "contract_hash": contract["contract_hash"],
                         "actions": grouped,
                         "timing": timing,
                     },
                 )
             elif message_type == "RESET":
-                send_frame(sys.stdout.buffer, {"type": "RESET_DONE"})
+                send_frame(protocol_out, {"type": "RESET_DONE"})
             elif message_type == "CLOSE":
-                send_frame(sys.stdout.buffer, {"type": "CLOSED"})
+                send_frame(protocol_out, {"type": "CLOSED"})
                 return
             else:
                 raise ValueError(f"unsupported message type: {message_type!r}")
         except Exception as exc:
             send_frame(
-                sys.stdout.buffer,
+                protocol_out,
                 {
                     "type": "ERROR",
                     "request_id": message.get("request_id"),
@@ -158,6 +163,10 @@ def _build_policy_observation(observation: dict[str, Any], contract: dict[str, A
         positions = np.asarray(received.get("positions"), dtype=np.float32)
         if positions.shape != (len(names),):
             raise ValueError(f"joint group {group!r} names/positions mismatch")
+        if len(names) != len(set(names)):
+            raise ValueError(f"joint group {group!r} contains duplicate names")
+        if not np.all(np.isfinite(positions)):
+            raise ValueError(f"joint group {group!r} contains non-finite positions")
         index = {name: i for i, name in enumerate(names)}
         missing = [name for name in expected_names if name not in index]
         if missing:
@@ -240,10 +249,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--checkpoint", required=True)
     args = parser.parse_args()
+    # Preserve the original stdout exclusively for framed protocol replies.
+    # Model libraries may use print(), so redirect text stdout before LOAD.
+    protocol_out = sys.stdout.buffer
+    sys.stdout = sys.stderr
     # EOF is the normal fallback when the parent gateway exits before it can
     # complete a framed CLOSE handshake.
     with contextlib.suppress(KeyboardInterrupt, EOFError):
-        serve(args.checkpoint)
+        serve(args.checkpoint, protocol_out=protocol_out)
 
 
 if __name__ == "__main__":

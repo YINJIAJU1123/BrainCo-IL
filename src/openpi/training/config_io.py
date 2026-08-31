@@ -14,6 +14,7 @@ from typing import Any
 import flax.nnx as nnx
 import yaml
 
+from openpi.deploy.contract import checkpoint_id_for
 from openpi.deploy.contract import resolve_dataset_interface
 from openpi.models import act_config
 from openpi.models import pi0_config
@@ -41,7 +42,10 @@ def save_train_config(config: training_config.TrainConfig, directory: str | Path
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / TRAIN_CONFIG_YAML
-    path.write_text(to_yaml(config), encoding="utf-8")
+    path.write_text(
+        to_yaml(config, checkpoint_id=checkpoint_id_for(config, directory)),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -57,17 +61,18 @@ def load_train_config(path_or_dir: str | Path) -> training_config.TrainConfig:
     schema_version = int(payload.get("schema_version", 0) or 0)
     if schema_version != CONFIG_SCHEMA_VERSION:
         raise RuntimeError(
-            f"unsupported train config schema_version={schema_version} in {path}; "
-            f"expected {CONFIG_SCHEMA_VERSION}"
+            f"unsupported train config schema_version={schema_version} in {path}; expected {CONFIG_SCHEMA_VERSION}"
         )
+    if payload.get("generated") is not True or payload.get("do_not_edit") is not True:
+        raise RuntimeError(f"checkpoint train_config.yaml must be generated and immutable: {path}")
+    if not str(payload.get("generated_by", "")).strip():
+        raise RuntimeError(f"checkpoint train_config.yaml requires generated_by: {path}")
     config_payload = payload.get("train_config")
     expected_hash = str(payload.get("content_sha256", ""))
     if expected_hash:
         actual_hash = _plain_hash(config_payload)
         if actual_hash != expected_hash:
-            raise RuntimeError(
-                f"generated train_config.yaml was modified: {path}; regenerate it instead of editing it"
-            )
+            raise RuntimeError(f"generated train_config.yaml was modified: {path}; regenerate it instead of editing it")
     config = _from_plain(config_payload)
     if not isinstance(config, training_config.TrainConfig):
         raise RuntimeError(f"YAML did not describe a TrainConfig: {path}")
@@ -87,9 +92,7 @@ def find_train_config_yaml(path_or_dir: str | Path) -> Path:
     for candidate in candidates:
         if candidate.is_file():
             return candidate
-    raise FileNotFoundError(
-        f"{TRAIN_CONFIG_YAML} not found in {path} or its parent; new checkpoints must save it"
-    )
+    raise FileNotFoundError(f"{TRAIN_CONFIG_YAML} not found in {path} or its parent; new checkpoints must save it")
 
 
 def has_train_config_yaml(path_or_dir: str | Path) -> bool:
@@ -100,13 +103,31 @@ def has_train_config_yaml(path_or_dir: str | Path) -> bool:
     return True
 
 
-def to_yaml(config: training_config.TrainConfig) -> str:
+def validate_checkpoint_id(path_or_dir: str | Path, expected: str) -> None:
+    """Bind a generated train config to the contract used for LOAD."""
+
+    path = find_train_config_yaml(path_or_dir)
+    payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+    checkpoint_id = str(payload.get("checkpoint_id", "")).strip()
+    if checkpoint_id and checkpoint_id != str(expected):
+        raise RuntimeError(
+            f"train_config.yaml checkpoint_id differs from policy_contract.json: {checkpoint_id!r} != {expected!r}"
+        )
+    if not checkpoint_id:
+        LOGGER.warning(
+            "Legacy train_config.yaml has no checkpoint_id: %s; regenerate new checkpoints",
+            path,
+        )
+
+
+def to_yaml(config: training_config.TrainConfig, *, checkpoint_id: str | None = None) -> str:
     config_payload = _to_plain(config)
     payload = {
         "schema_version": CONFIG_SCHEMA_VERSION,
         "generated": True,
         "do_not_edit": True,
         "generated_by": "BrainCo-IL",
+        "checkpoint_id": checkpoint_id,
         "content_sha256": _plain_hash(config_payload),
         "train_config": config_payload,
     }
@@ -171,11 +192,7 @@ def _from_plain(value: Any) -> Any:
         if unknown_fields:
             log = LOGGER.info if set(unknown_fields).issubset(_REMOVED_FIELDS) else LOGGER.warning
             log("Ignoring removed or unknown fields for %s: %s", class_name, ", ".join(unknown_fields))
-        kwargs = {
-            str(key): _from_plain(item)
-            for key, item in fields.items()
-            if str(key) in accepted_fields
-        }
+        kwargs = {str(key): _from_plain(item) for key, item in fields.items() if str(key) in accepted_fields}
         return cls(**kwargs)
     return {key: _from_plain(item) for key, item in value.items()}
 
@@ -209,14 +226,11 @@ def _from_experiment_payload(payload: dict[str, Any], path: Path) -> training_co
         dataset_roots = [str(item) for item in dataset_value]
     else:
         raise ValueError(f"experiment.dataset must be a path or list of paths ({path})")
-    groups = tuple(str(group) for group in policy.get(
-        "groups", ("left_arm", "right_arm", "left_hand", "right_hand")
-    ))
+    groups = tuple(str(group) for group in policy.get("groups", ("left_arm", "right_arm", "left_hand", "right_hand")))
     unknown_policy = sorted(set(policy) - {"groups", "action_horizon"})
     if unknown_policy:
         raise ValueError(
-            f"unknown concise policy fields: {unknown_policy} ({path}); "
-            "deployment actions are always absolute"
+            f"unknown concise policy fields: {unknown_policy} ({path}); deployment actions are always absolute"
         )
     interface = resolve_dataset_interface(dataset_roots, groups)
     action_dim = len(interface["action_names"])

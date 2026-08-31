@@ -10,6 +10,8 @@ import numpy as np
 
 _HEADER = struct.Struct("!Q")
 _ARRAY_MARKER = "__ndarray_blob__"
+_MAX_HEADER_BYTES = 64 * 1024 * 1024
+_MAX_BLOB_BYTES = 1024 * 1024 * 1024
 
 
 def send_frame(stream: BinaryIO, payload: dict[str, Any]) -> None:
@@ -29,8 +31,13 @@ def send_frame(stream: BinaryIO, payload: dict[str, Any]) -> None:
 def recv_frame(stream: BinaryIO) -> dict[str, Any]:
     raw_size = _read_exact(stream, _HEADER.size)
     header_size = _HEADER.unpack(raw_size)[0]
+    if header_size > _MAX_HEADER_BYTES:
+        raise ValueError("invalid inferencer frame header size; stdout may contain non-protocol output")
     header = json.loads(_read_exact(stream, header_size).decode("utf-8"))
-    blobs = [_read_exact(stream, int(size)) for size in header.get("blob_sizes", [])]
+    blob_sizes = [int(size) for size in header.get("blob_sizes", [])]
+    if any(size < 0 for size in blob_sizes) or sum(blob_sizes) > _MAX_BLOB_BYTES:
+        raise ValueError("inferencer frame blobs exceed the protocol safety limit")
+    blobs = [_read_exact(stream, size) for size in blob_sizes]
     payload = _decode(header["payload"], blobs)
     if not isinstance(payload, dict):
         raise ValueError("protocol payload must be an object")
@@ -68,7 +75,12 @@ def _decode(value: Any, blobs: list[bytes]) -> Any:
 
 
 def _read_exact(stream: BinaryIO, size: int) -> bytes:
-    data = stream.read(size)
-    if len(data) != size:
-        raise EOFError("protocol stream closed")
-    return data
+    chunks: list[bytes] = []
+    remaining = size
+    while remaining:
+        chunk = stream.read(remaining)
+        if not chunk:
+            raise EOFError("protocol stream closed")
+        chunks.append(chunk)
+        remaining -= len(chunk)
+    return b"".join(chunks)

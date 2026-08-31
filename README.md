@@ -1,5 +1,7 @@
 # BrainCo-IL
 
+Deployment compatibility: **revo inference architecture v1.1** (`v1.1` tag).
+
 BrainCo training and inference repository derived from
 [OpenPI](https://github.com/Physical-Intelligence/openpi). The maintained
 production paths are JAX PI0/PI0.5, ACT, LeRobot 2.1 datasets, BrainCo data
@@ -26,14 +28,15 @@ Each saved step contains:
 ```text
 params/
 assets/
-train_config.yaml       # GENERATED / DO NOT EDIT / hash checked
-policy_contract.json    # GENERATED / DO NOT EDIT / hash checked
+train_config.yaml       # GENERATED / DO NOT EDIT / content + checkpoint ID checked
+policy_contract.json    # GENERATED / DO NOT EDIT / contract hash checked
 ```
 
 `train_config.yaml` rebuilds the exact preprocessing, normalization, model and
 unnormalization pipeline. `policy_contract.json` describes named inputs and
 grouped absolute action outputs for deployment. Regenerate these artifacts;
-manual edits are rejected.
+manual edits are rejected. Both generated files carry the same checkpoint ID,
+so mixing artifacts from different training steps fails before model loading.
 
 ## Policy Inferencer
 
@@ -55,7 +58,9 @@ RESET / CLOSE / ERROR
 The inferencer has no ROS dependency. It accepts named joint groups and raw RGB
 images, orders/selects features using checkpoint metadata, runs the full model
 pipeline, and returns named grouped `float32[T, D]` absolute actions. PI0.5 and
-ACT use the same boundary; `revo_deploy` does not know the model type.
+ACT use the same boundary; `revo_deploy` does not know the model type. Runtime
+capabilities come from `DESCRIBE`: PI0/PI0.5 advertise `standard` and `rtc`, while
+ACT advertises `standard`.
 
 ## Core layout
 

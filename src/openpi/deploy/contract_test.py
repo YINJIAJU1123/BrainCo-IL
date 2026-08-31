@@ -5,8 +5,8 @@ import numpy as np
 import pytest
 
 from openpi.deploy import contract
-from openpi.deploy import protocol
 from openpi.deploy import policy_inferencer
+from openpi.deploy import protocol
 from openpi.models import act_config
 from openpi.models import pi0_config
 from openpi.training import config_io
@@ -61,6 +61,13 @@ def test_concise_experiment_switches_pi05_and_act(tmp_path):
     assert isinstance(act.model, act_config.ACTConfig)
     assert pi.model.action_dim == act.model.action_dim == 26
     assert pi.model.action_horizon == act.model.action_horizon == 12
+    assert contract.build_policy_contract(pi, "pi")["inference_strategies"] == [
+        "standard",
+        "rtc",
+    ]
+    assert contract.build_policy_contract(act, "act")["inference_strategies"] == [
+        "standard"
+    ]
 
 
 def test_concise_experiment_rejects_action_mode_fields(tmp_path):
@@ -89,6 +96,7 @@ def test_generated_contract_and_protocol_round_trip(tmp_path):
     loaded = contract.load_policy_contract(generated)
     assert loaded["do_not_edit"] is True
     assert sum(map(len, loaded["output_joint_groups"].values())) == 26
+    assert loaded["inference_strategies"] == ["standard", "rtc"]
 
     stream = io.BytesIO()
     protocol.send_frame(stream, {"type": "TEST", "array": np.zeros((2, 3), np.float32)})
@@ -96,6 +104,33 @@ def test_generated_contract_and_protocol_round_trip(tmp_path):
     result = protocol.recv_frame(stream)
     assert result["type"] == "TEST"
     assert result["array"].shape == (2, 3)
+
+
+def test_inferencer_named_adapter_accepts_reordered_names(tmp_path):
+    dataset = tmp_path / "dataset"
+    _dataset(dataset)
+    experiment = tmp_path / "pi.yaml"
+    _experiment(experiment, dataset, "pi05")
+    config = config_io.load_train_config(experiment)
+    payload = contract.build_policy_contract(config, "test")
+    observation = {
+        "joint_groups": {
+            group: {
+                "names": list(reversed(names)),
+                "positions": np.arange(len(names), dtype=np.float32)[::-1],
+            }
+            for group, names in payload["required_joint_groups"].items()
+        },
+        "images": {key: np.zeros((8, 8, 3), np.uint8) for key in payload["required_cameras"]},
+        "task": "test",
+    }
+
+    result = policy_inferencer._build_policy_observation(observation, payload)  # noqa: SLF001
+
+    expected = np.concatenate(
+        [np.arange(len(names), dtype=np.float32) for names in payload["required_joint_groups"].values()]
+    )
+    np.testing.assert_array_equal(result["observation/state"], expected)
 
 
 def test_inferencer_builds_training_transform_input_keys(tmp_path):

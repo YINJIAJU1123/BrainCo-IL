@@ -52,6 +52,19 @@ def test_save_final_checkpoint_yaml_round_trip(tmp_path):
     assert restored.save_final_checkpoint is False
 
 
+def test_saved_train_config_is_bound_to_checkpoint_directory(tmp_path):
+    original = _config.TrainConfig(name="run", exp_name="experiment")
+    checkpoint = tmp_path / "42"
+
+    path = config_io.save_train_config(original, checkpoint)
+    payload = yaml.safe_load(path.read_text())
+
+    assert payload["checkpoint_id"] == "experiment_step42"
+    config_io.validate_checkpoint_id(checkpoint, "experiment_step42")
+    with pytest.raises(RuntimeError, match="differs from policy_contract"):
+        config_io.validate_checkpoint_id(checkpoint, "other")
+
+
 def test_removed_fields_in_existing_checkpoint_are_ignored(tmp_path):
     original = _legacy_compatible_config()
     payload = yaml.safe_load(config_io.to_yaml(original))

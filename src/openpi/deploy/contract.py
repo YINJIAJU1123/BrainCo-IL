@@ -40,9 +40,7 @@ def resolve_dataset_interface(dataset_roots: Iterable[str | Path], groups: Itera
             "fps",
         ):
             if current[key] != reference[key]:
-                raise ValueError(
-                    f"LeRobot datasets have incompatible {key}: {roots[0]} vs {root}"
-                )
+                raise ValueError(f"LeRobot datasets have incompatible {key}: {roots[0]} vs {root}")
     return reference
 
 
@@ -71,6 +69,7 @@ def build_policy_contract(
         group: [name for name in interface["action_names"] if _joint_group(name) == group]
         for group in policy_io.action_groups
     }
+    model_type = str(train_config.model.model_type.value)
     contract: dict[str, Any] = {
         "generated": True,
         "do_not_edit": True,
@@ -83,6 +82,7 @@ def build_policy_contract(
         "output_joint_groups": output_groups,
         "chunk_steps": int(train_config.model.action_horizon),
         "policy_rate_hz": float(interface["fps"]),
+        "inference_strategies": (["standard", "rtc"] if model_type in ("pi0", "pi05") else ["standard"]),
     }
     contract["contract_hash"] = _payload_hash(contract)
     return contract
@@ -98,7 +98,7 @@ def save_policy_contract(
     directory.mkdir(parents=True, exist_ok=True)
     contract = build_policy_contract(
         train_config,
-        _checkpoint_id(train_config, directory),
+        checkpoint_id_for(train_config, directory),
         dataset_roots=dataset_roots,
     )
     path = directory / CONTRACT_FILENAME
@@ -113,17 +113,28 @@ def load_policy_contract(path_or_dir: str | Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise RuntimeError(f"policy contract must be a JSON object: {path}")
+    if payload.get("generated") is not True or payload.get("do_not_edit") is not True:
+        raise RuntimeError(f"policy contract must be generated and immutable: {path}")
+    if not str(payload.get("generated_by", "")).strip():
+        raise RuntimeError(f"policy contract requires generated_by: {path}")
     expected = str(payload.get("contract_hash", ""))
     actual = _payload_hash(payload)
     if not expected or expected != actual:
         raise RuntimeError(
-            f"generated policy contract was modified or is incomplete: {path}; "
-            "regenerate it instead of editing it"
+            f"generated policy contract was modified or is incomplete: {path}; regenerate it instead of editing it"
         )
     if int(payload.get("protocol_version", 0)) != PROTOCOL_VERSION:
         raise RuntimeError(
             f"unsupported policy protocol {payload.get('protocol_version')}; expected {PROTOCOL_VERSION}"
         )
+    strategies = payload.get("inference_strategies")
+    if strategies is not None and (
+        not isinstance(strategies, list)
+        or not strategies
+        or len(strategies) != len(set(strategies))
+        or set(strategies) - {"standard", "rtc"}
+    ):
+        raise RuntimeError("policy contract has invalid inference_strategies")
     return payload
 
 
@@ -139,24 +150,13 @@ def _read_dataset_interface(root: Path, groups: tuple[str, ...]) -> dict[str, An
     action_all = _feature_names(action_feature, "action", info_path)
     # Group order is the model vector order. Within each group, retain the
     # exact order recorded by LeRobot metadata.
-    state_indices = tuple(
-        i
-        for group in groups
-        for i, name in enumerate(state_all)
-        if _joint_group(name) == group
-    )
-    action_indices = tuple(
-        i
-        for group in groups
-        for i, name in enumerate(action_all)
-        if _joint_group(name) == group
-    )
+    state_indices = tuple(i for group in groups for i, name in enumerate(state_all) if _joint_group(name) == group)
+    action_indices = tuple(i for group in groups for i, name in enumerate(action_all) if _joint_group(name) == group)
     state_names = [state_all[i] for i in state_indices]
     action_names = [action_all[i] for i in action_indices]
     if state_names != action_names:
         raise ValueError(
-            f"selected observation.state/action names differ in {info_path}: "
-            f"state={state_names}, action={action_names}"
+            f"selected observation.state/action names differ in {info_path}: state={state_names}, action={action_names}"
         )
     missing = [group for group in groups if not any(_joint_group(name) == group for name in state_names)]
     if missing:
@@ -174,10 +174,7 @@ def _read_dataset_interface(root: Path, groups: tuple[str, ...]) -> dict[str, An
         "state_names": state_names,
         "action_names": action_names,
         "cameras": cameras,
-        "group_dims": {
-            group: sum(_joint_group(name) == group for name in state_names)
-            for group in groups
-        },
+        "group_dims": {group: sum(_joint_group(name) == group for name in state_names) for group in groups},
     }
 
 
@@ -216,7 +213,8 @@ def _dataset_roots(train_config) -> list[str]:
     return roots
 
 
-def _checkpoint_id(train_config, directory: Path) -> str:
+def checkpoint_id_for(train_config, directory: str | Path) -> str:
+    directory = Path(directory)
     if directory.name.isdigit():
         return f"{train_config.exp_name}_step{directory.name}"
     return directory.name
