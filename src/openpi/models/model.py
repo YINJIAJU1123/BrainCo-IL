@@ -156,6 +156,7 @@ def preprocess_observation(
             logger.info(f"Resizing image {key} from {image.shape[1:3]} to {image_resolution}")
             image = image_tools.resize_with_pad(image, *image_resolution)
 
+        original_image = image
         if train:
             # augmax 要求 [0, 1] 输入,先从 [-1, 1] 转换.
             image = image / 2.0 + 0.5
@@ -177,6 +178,11 @@ def preprocess_observation(
             # 图像增强后转换回 [-1, 1].
             image = image * 2.0 - 1.0
 
+        # Invalid sensors retain their supplied placeholder through augmentation.
+        # Existing valid three-camera inputs follow the original path.
+        if key in observation.image_masks:
+            valid = jnp.asarray(observation.image_masks[key])[..., None, None, None]
+            image = jnp.where(valid, image, original_image)
         out_images[key] = image
 
     # 整理各相机视角的有效性 mask.

@@ -238,6 +238,8 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
     arm_dof: int = 7
     hand_dof: int = 21
     head_camera_key: str = "observation.images.stereo_right"
+    # EgoDex has only a head sensor: black wrist placeholders with masks False.
+    egodex_head_only: bool = False
     revo3_eef_joint_hand_to_joint_hand: bool = False
     # 原始数据集中的 action 键名;LeRobot loader 会在 repack transform 前使用.
     action_sequence_keys: Sequence[str] = ("action",)
@@ -262,6 +264,15 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
             ]
         )
 
+        if self.egodex_head_only:
+            repack_transform = _transforms.Group(
+                inputs=[
+                    brainco_policy.EgoDexMissingCameras(self.head_camera_key),
+                    *repack_transform.inputs,
+                ]
+            )
+            logging.info("EgoDex camera convention: head=True, wrists=False; uint8 black placeholders")
+
         input_transforms = []
         if self.revo3_eef_joint_hand_to_joint_hand:
             input_transforms.append(
@@ -270,7 +281,11 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
                     hand_dof=self.hand_dof,
                 )
             )
-        input_transforms.append(brainco_policy.BrainCoInputs(model_type=model_config.model_type))
+        input_transforms.append(
+            brainco_policy.BrainCoInputs(
+                model_type=model_config.model_type, egodex_head_only=self.egodex_head_only
+            )
+        )
 
         data_transforms = _transforms.Group(
             inputs=input_transforms,

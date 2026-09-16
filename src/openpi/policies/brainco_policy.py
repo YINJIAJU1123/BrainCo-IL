@@ -172,6 +172,20 @@ class BrainCoRevo3EefJointHandToJointHand(transforms.DataTransformFn):
 
 
 @dataclasses.dataclass(frozen=True)
+class EgoDexMissingCameras(transforms.DataTransformFn):
+    """Supply uint8 black wrist placeholders before dataset repacking."""
+
+    head_camera_key: str = "observation.images.cam_head"
+
+    def __call__(self, data: dict) -> dict:
+        data = dict(data)
+        head = _parse_image(data[self.head_camera_key])
+        for key in ("observation.images.cam_left_wrist", "observation.images.cam_right_wrist"):
+            data[key] = np.zeros_like(head, dtype=np.uint8)
+        return data
+
+
+@dataclasses.dataclass(frozen=True)
 class BrainCoInputs(transforms.DataTransformFn):
     """Convert inputs from BrainCo dataset to the format expected by Pi0 models.
 
@@ -179,11 +193,17 @@ class BrainCoInputs(transforms.DataTransformFn):
     """
 
     model_type: _model.ModelType
+    egodex_head_only: bool = False
 
     def __call__(self, data: dict) -> dict:
         stereo_right_image = _parse_image(data["observation/image"])
-        left_wrist_image = _parse_image(data["observation/left_wrist_image"])
-        right_wrist_image = _parse_image(data["observation/right_wrist_image"])
+        if self.egodex_head_only:
+            # Also enforce the same convention for policy inference inputs.
+            left_wrist_image = np.zeros_like(stereo_right_image, dtype=np.uint8)
+            right_wrist_image = np.zeros_like(stereo_right_image, dtype=np.uint8)
+        else:
+            left_wrist_image = _parse_image(data["observation/left_wrist_image"])
+            right_wrist_image = _parse_image(data["observation/right_wrist_image"])
 
         inputs = {
             "state": data["observation/state"],
@@ -194,8 +214,8 @@ class BrainCoInputs(transforms.DataTransformFn):
             },
             "image_mask": {
                 "base_0_rgb": np.True_,
-                "left_wrist_0_rgb": np.True_,
-                "right_wrist_0_rgb": np.True_,
+                "left_wrist_0_rgb": np.bool_(not self.egodex_head_only),
+                "right_wrist_0_rgb": np.bool_(not self.egodex_head_only),
             },
         }
 

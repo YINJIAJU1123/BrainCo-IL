@@ -211,6 +211,7 @@ def train_step(
     params = state.params.filter(config.trainable_filter)
     updates, new_opt_state = state.tx.update(grads, state.opt_state, params)
     new_params = optax.apply_updates(params, updates)
+    applied_update_norm = optax.global_norm(jax.tree.map(lambda new, old: new - old, new_params, params))
 
     # 将更新后的可训练参数写回模型,再生成新的完整参数状态.
     nnx.update(model, new_params)
@@ -237,6 +238,8 @@ def train_step(
     info = {
         "loss": loss,
         "grad_norm": optax.global_norm(grads),
+        "update_norm": optax.global_norm(updates),
+        "applied_update_norm": applied_update_norm,
         "param_norm": optax.global_norm(kernel_params),
     }
     return new_state, info
