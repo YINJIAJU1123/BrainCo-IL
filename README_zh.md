@@ -13,6 +13,23 @@ BrainCo-IL 是基于 [OpenPI](https://github.com/Physical-Intelligence/openpi)
 上游 Aloha、DROID、Libero 示例、PI0-FAST、RLDS、PyTorch PI0、
 WebSocket policy server 和旧 BrainCo ROS2 部署方案均已删除。
 
+## EgoDex 直出进度
+
+**2026-09-29 单核小样本实测：成功片段每处理 1 小时原视频约需 8.65 小时。**
+这来自两段共 846 帧的直接 EgoDex → LeRobot 转换；另两段计时样本暴露
+手部关节 NaN 校验问题。BrainCo-Dataset 已修正该检查；A100 已通过
+`brainco-a100-6007` 连通，原失败样本尚待回归。100 小时正式数据仍由 HDF5 中转链路生成。详见
+[EgoDex 管线记录](docs/ego/README.md)。
+
+## Ego 100h Post-train 准备
+
+三份 PI0.5 混训配置、覆盖式采样、来源级相机 mask、真机筛查工具、共享 norm
+计算和 checkpoint 自动契约封装已准备。**本阶段没有执行任何权重更新。**
+真机审核 manifest 尚待人工确认；共享 norm、模型前向和既有 checkpoint
+部署加载检查仍待在 A100 执行。见[分级状态与 TODO](docs/ego/POSTTRAIN_TODO.md)、
+[架构及资产审阅](docs/ego/POSTTRAIN_ARCHITECTURE.md)、
+[启动与恢复说明](docs/ego/POSTTRAIN_RUNBOOK.md)。
+
 ## 关节顺序
 
 默认 56D 顺序为：
@@ -47,11 +64,11 @@ uv run python scripts/train.py \
 也可以从 `pi05_brainco_56d` 或 `act_brainco_56d` 基准 recipe 出发，
 通过 CLI 覆写 batch size、action horizon、学习率和训练步数等标量。
 
-训练会把最终展开后的完整配置写入 run 根目录和每个 step checkpoint
-中的 `train_config.yaml`。部署需要的完整产物只有：
+训练会把最终展开后的完整配置写入 run 根目录和每个 step checkpoint。
+checkpoint 完成后，程序检查 norm asset，生成契约，最后写部署就绪标记：
 
 ```text
-train_config.yaml + params/ + assets/
+train_config.yaml + params/ + assets/ + policy_contract.json + deploy_ready.json
 ```
 
 ## 部署握手

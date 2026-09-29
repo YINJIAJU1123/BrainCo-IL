@@ -78,6 +78,11 @@ class LeRobotDataset:
     weight: float
     # 可选:覆盖当前数据集使用的 asset_id.
     asset_id: str | None = None
+    # Stable provenance label for reports; does not enter the model batch.
+    source_id: str | None = None
+    # None preserves the factory's historical camera convention.
+    mask_wrist_images: bool | None = None
+    prompt_override: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -111,7 +116,14 @@ class DataConfig:
     # 多数据集模式:
     # - concat:拼接全部数据集,使用每一条样本.
     # - weighted:按权重采样,部分样本可能重复或被跳过.
-    multi_dataset_mode: Literal["concat", "weighted"] = "concat"
+    multi_dataset_mode: Literal["concat", "weighted", "coverage"] = "concat"
+    # coverage mode: two sources, with the named source traversed once.
+    coverage_source: str | None = None
+    coverage_ego_ratio: int = 1
+    coverage_real_ratio: int = 1
+    coverage_round_to: int = 32
+    coverage_rounds: int = 1
+    coverage_seed: int = 42
 
 
 class GroupFactory(Protocol):
@@ -254,7 +266,7 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
         # 将数据集原始键映射为 transforms 期望的键.
         repack_transform = _transforms.Group(
             inputs=[
-                _transforms.RepackTransform(
+                brainco_policy.SourceAwareRepackTransform(
                     {
                         "observation/image": self.head_camera_key,
                         "observation/left_wrist_image": "observation.images.cam_left_wrist",
@@ -382,6 +394,8 @@ class TrainConfig:
 
     # 传递给策略服务的附加 metadata.
     policy_metadata: dict[str, Any] | None = None
+    deployment_robot_interface: str = "revotron_mit_revo3_mit_3cam"
+    policy_rate_hz: float = 30.0
 
     # 大于 1 时启用 FSDP,并在指定数量的设备间切分模型,可降低单卡显存,
     # 但训练可能变慢.例如共有 4 张卡且 fsdp_devices=2 时,

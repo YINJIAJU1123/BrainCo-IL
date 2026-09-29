@@ -1,0 +1,205 @@
+schema_version: 1
+train_config:
+  __class__: openpi.training.config.TrainConfig
+  fields:
+    name: egodex_pi05_posttrain_20260929
+    project_name: imitation
+    exp_name: posttrain_e3_r1
+    model:
+      __class__: openpi.models.pi0_config.Pi0Config
+      fields:
+        action_dim: 56
+        action_horizon: 16
+        max_token_len: 256
+        dtype: bfloat16
+        paligemma_variant: gemma_2b_lora
+        action_expert_variant: gemma_300m_lora
+        pi05: true
+        discrete_state_input: true
+    weight_loader:
+      __class__: openpi.training.weight_loaders.CheckpointWeightLoader
+      fields:
+        params_path: /mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/19999/params
+    lr_schedule:
+      __class__: openpi.training.optimizer.CosineDecaySchedule
+      fields:
+        warmup_steps: 1382
+        peak_lr: 5.0e-05
+        decay_steps: 13816
+        decay_lr: 5.0e-06
+    optimizer:
+      __class__: openpi.training.optimizer.AdamW
+      fields:
+        b1: 0.9
+        b2: 0.95
+        eps: 1.0e-08
+        weight_decay: 1.0e-10
+        clip_gradient_norm: 1.0
+    ema_decay: null
+    freeze_strategy: lora_and_action_interface
+    data:
+      __class__: openpi.training.config.LeRobotBrainCoDataConfig
+      fields:
+        repo_id: egodex_real_reference_1to1
+        assets:
+          __class__: openpi.training.config.AssetsConfig
+          fields:
+            assets_dir: /mnt/data_nas/ruibin/BrainCo-IL/assets/posttrain_shared_20260929
+            asset_id: egodex_real_reference_1to1
+        base_config:
+          __class__: openpi.training.config.DataConfig
+          fields:
+            repo_id: null
+            asset_id: null
+            norm_stats: null
+            repack_transforms:
+              __class__: openpi.transforms.Group
+              fields:
+                inputs: []
+                outputs: []
+            data_transforms:
+              __class__: openpi.transforms.Group
+              fields:
+                inputs: []
+                outputs: []
+            model_transforms:
+              __class__: openpi.transforms.Group
+              fields:
+                inputs: []
+                outputs: []
+            use_quantile_norm: true
+            action_sequence_keys:
+            - action
+            prompt_from_task: true
+            lerobot_datasets:
+            - __class__: openpi.training.config.LeRobotDataset
+              fields:
+                repo_id: /mnt/data_nas/ruibin/dataset/egodex_100h_offset0_lerobot21/train
+                weight: 0.5
+                asset_id: null
+                source_id: ego
+                mask_wrist_images: true
+                prompt_override: null
+            - __class__: openpi.training.config.LeRobotDataset
+              fields:
+                repo_id: /mnt/data_nas/ruibin/dataset/revotron_item_sorting_reviewed_v1
+                weight: 0.5
+                asset_id: null
+                source_id: real
+                mask_wrist_images: false
+                prompt_override: put bread into left basket and put fruit into right
+                  basket
+            multi_dataset_mode: coverage
+            coverage_source: real
+            coverage_ego_ratio: 3
+            coverage_real_ratio: 1
+            coverage_round_to: 32
+            coverage_rounds: 1
+            coverage_seed: 42
+        extra_delta_transform: true
+        policy_io:
+          __class__: openpi.policies.brainco_policy.BrainCoPolicyIOConfig
+          fields:
+            state_groups:
+            - left_arm
+            - right_arm
+            - left_hand
+            - right_hand
+            action_groups:
+            - left_arm
+            - right_arm
+            - left_hand
+            - right_hand
+            delta_action_groups:
+            - left_arm
+            - right_arm
+            dataset_state_dim: 56
+            dataset_state_indices:
+            - 0
+            - 1
+            - 2
+            - 3
+            - 4
+            - 5
+            - 6
+            - 7
+            - 8
+            - 9
+            - 10
+            - 11
+            - 12
+            - 13
+            - 14
+            - 15
+            - 16
+            - 17
+            - 18
+            - 19
+            - 20
+            - 21
+            - 22
+            - 23
+            - 24
+            - 25
+            - 26
+            - 27
+            - 28
+            - 29
+            - 30
+            - 31
+            - 32
+            - 33
+            - 34
+            - 35
+            - 36
+            - 37
+            - 38
+            - 39
+            - 40
+            - 41
+            - 42
+            - 43
+            - 44
+            - 45
+            - 46
+            - 47
+            - 48
+            - 49
+            - 50
+            - 51
+            - 52
+            - 53
+            - 54
+            - 55
+        arm_dof: 7
+        hand_dof: 21
+        head_camera_key: observation.images.cam_head
+        mask_wrist_images: false
+        revo3_eef_joint_hand_to_joint_hand: true
+        action_sequence_keys:
+        - action
+    assets_base_dir: /mnt/data_nas/ruibin/BrainCo-IL/assets
+    checkpoint_base_dir: /mnt/data_nas/ruibin/BrainCo-IL/checkpoints
+    seed: 42
+    batch_size: 16
+    num_workers: 2
+    num_train_steps: 13816
+    log_interval: 10
+    save_interval: 1000
+    keep_period: 2000
+    save_final_checkpoint: true
+    overwrite: false
+    resume: false
+    wandb_enabled: true
+    policy_metadata:
+      comparison: equal_real_exposure
+      planned_real_starts_before_review: 55243
+      planned_rounded_real_starts: 55264
+      review_status: pending
+      camera_masks_for_deployment:
+        head: true
+        left_wrist: true
+        right_wrist: true
+    fsdp_devices: 1
+    deployment_robot_interface: revotron_mit_revo3_mit_3cam
+    policy_rate_hz: 30.0

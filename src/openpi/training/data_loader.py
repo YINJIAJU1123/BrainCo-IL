@@ -13,6 +13,7 @@ import logging
 import multiprocessing
 import os
 import typing
+import dataclasses
 from typing import Protocol, SupportsIndex, TypeVar
 
 import jax
@@ -24,6 +25,8 @@ import torch
 import openpi.models.model as _model
 import openpi.training.config as _config
 import openpi.transforms as _transforms
+import openpi.policies.brainco_policy as _brainco_policy
+from openpi.training.coverage_sampler import CoverageBatchSampler
 
 T_co = TypeVar("T_co", covariant=True)
 
@@ -104,6 +107,22 @@ class TransformedDataset(Dataset[T_co]):
 
     def __len__(self) -> int:
         return len(self._dataset)
+
+
+@dataclasses.dataclass(frozen=True)
+class SourceOptions:
+    mask_wrist_images: bool | None = None
+    prompt_override: str | None = None
+
+    def __call__(self, sample: dict) -> dict:
+        if self.mask_wrist_images is None and self.prompt_override is None:
+            return sample
+        sample = dict(sample)
+        if self.mask_wrist_images is not None:
+            sample[_brainco_policy.SOURCE_MASK_KEY] = np.bool_(self.mask_wrist_images)
+        if self.prompt_override is not None:
+            sample["prompt"] = np.asarray(self.prompt_override)
+        return sample
 
 
 class FakeDataset(Dataset):
@@ -288,12 +307,15 @@ def create_torch_dataset(
 
             datasets.append(dataset)
             weights.append(ds_config.weight)
-            prompt_transforms.append(prompt_transform)
+            prompt_transforms.append(_transforms.compose([
+                *([prompt_transform] if prompt_transform is not None else []),
+                SourceOptions(ds_config.mask_wrist_images, ds_config.prompt_override),
+            ]))
 
             logging.info(f"  - {ds_config.repo_id}: weight={ds_config.weight:.2f}, samples={len(dataset)}")
 
         # 根据模式选择多数据集组合方式.
-        if multi_dataset_mode == "concat":
+        if multi_dataset_mode in ("concat", "coverage"):
             # concat 模式:使用所有数据集中的全部样本.
             return ConcatLeRobotDataset(datasets, prompt_transforms)
         if multi_dataset_mode == "weighted":
@@ -362,7 +384,7 @@ def create_data_loader(
     data_config = config.data.create(config.assets_dirs, config.model)
     logging.info(f"data_config: {data_config}")
 
-    return create_torch_data_loader(
+    loader = create_torch_data_loader(
         data_config,
         model_config=config.model,
         action_horizon=config.model.action_horizon,
@@ -374,6 +396,9 @@ def create_data_loader(
         seed=config.seed,
         skip_norm_stats=skip_norm_stats,
     )
+    if loader.coverage_plan is not None and config.num_train_steps != loader.coverage_plan.steps:
+        raise ValueError("num_train_steps must match the complete coverage sampling plan")
+    return loader
 
 
 def create_torch_data_loader(
@@ -404,6 +429,10 @@ def create_torch_data_loader(
         seed:打乱数据使用的随机种子.
     """
     dataset = create_torch_dataset(data_config, action_horizon, model_config)
+    coverage_sampler = None
+    if data_config.multi_dataset_mode == "coverage":
+        coverage_sampler = _coverage_plan(data_config, batch_size, dataset)
+        num_batches = coverage_sampler.steps
     dataset = transform_dataset(dataset, data_config, skip_norm_stats=skip_norm_stats)
 
     local_batch_size = batch_size // jax.process_count()
@@ -417,9 +446,24 @@ def create_torch_data_loader(
         num_batches=num_batches,
         num_workers=num_workers,
         seed=seed,
+        batch_sampler=coverage_sampler,
     )
 
     return DataLoaderImpl(data_config, data_loader)
+
+
+def _coverage_plan(data_config: _config.DataConfig, batch_size: int, dataset: Dataset) -> CoverageBatchSampler:
+    sources = data_config.lerobot_datasets
+    ids = [source.source_id for source in sources]
+    if len(sources) != 2 or data_config.coverage_source is None or ids.count(data_config.coverage_source) != 1:
+        raise ValueError("coverage requires two distinct source IDs and one named coverage_source")
+    lengths = tuple(len(part) for part in dataset._datasets)
+    return CoverageBatchSampler(
+        lengths, coverage_index=ids.index(data_config.coverage_source),
+        ego_ratio=data_config.coverage_ego_ratio, real_ratio=data_config.coverage_real_ratio,
+        round_to=data_config.coverage_round_to, rounds=data_config.coverage_rounds,
+        batch_size=batch_size, seed=data_config.coverage_seed,
+    )
 
 
 class TorchDataLoader:
@@ -435,6 +479,7 @@ class TorchDataLoader:
         num_batches: int | None = None,
         num_workers: int = 0,
         seed: int = 0,
+        batch_sampler: CoverageBatchSampler | None = None,
     ):
         """创建底层 PyTorch DataLoader.
 
@@ -461,6 +506,7 @@ class TorchDataLoader:
                 jax.sharding.PartitionSpec("B"),
             )
         self._num_batches = num_batches
+        self._batch_sampler = batch_sampler
 
         mp_context = None
         if num_workers > 0:
@@ -468,18 +514,22 @@ class TorchDataLoader:
 
         generator = torch.Generator()
         generator.manual_seed(seed)
+        loader_kwargs = dict(num_workers=num_workers, multiprocessing_context=mp_context,
+                             persistent_workers=num_workers > 0, collate_fn=_collate_fn,
+                             worker_init_fn=_worker_init_fn, generator=generator)
+        if batch_sampler is None:
+            loader_kwargs.update(batch_size=local_batch_size, shuffle=shuffle, drop_last=True)
+        else:
+            loader_kwargs["batch_sampler"] = batch_sampler
         self._data_loader = torch.utils.data.DataLoader(
-            typing.cast(torch.utils.data.Dataset, dataset),
-            batch_size=local_batch_size,
-            shuffle=shuffle,
-            num_workers=num_workers,
-            multiprocessing_context=mp_context,
-            persistent_workers=num_workers > 0,
-            collate_fn=_collate_fn,
-            worker_init_fn=_worker_init_fn,
-            drop_last=True,
-            generator=generator,
+            typing.cast(torch.utils.data.Dataset, dataset), **loader_kwargs
         )
+
+    def set_start_step(self, step: int) -> None:
+        if self._batch_sampler is None:
+            return
+        self._batch_sampler.set_start_step(step)
+        self._num_batches = self._batch_sampler.steps - step
 
     @property
     def torch_loader(self) -> torch.utils.data.DataLoader:
@@ -523,6 +573,13 @@ class DataLoaderImpl(DataLoader):
 
     def data_config(self) -> _config.DataConfig:
         return self._data_config
+
+    @property
+    def coverage_plan(self) -> CoverageBatchSampler | None:
+        return self._data_loader._batch_sampler
+
+    def set_start_step(self, step: int) -> None:
+        self._data_loader.set_start_step(step)
 
     def __iter__(self):
         for batch in self._data_loader:

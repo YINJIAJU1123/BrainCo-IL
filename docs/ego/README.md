@@ -2,12 +2,14 @@
 
 项目记录：A100 是工作环境，Mac 用于调试与 review。代码按可复核的小版本集中提交；本轮目录整理与训练准备暂不提交。
 
+当前状态（2026-09-28）：100 小时批次的 20,000 步训练已完成，最终 checkpoint 为 `checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/19999/`；其中已生成 `policy_contract.json` 并封装部署元数据，训练配置内层内容保持不变。固定验证集评估和 5090 部署验收仍待完成。第 8 节训练命令保留为历史复现记录，不应在同名实验目录重跑。
+
 ## 1. 目标与流程
 
 `EgoDex 视频/标注 → 手指 retargeting + 双臂 IK → 有效区间筛选 → LeRobot 2.1 → PI0.5 训练 → Revotron 验证`
 
 - 以后从原始 EgoDex 处理动作时，目标是直接写 LeRobot Parquet + 三路 MP4；原始标注仍是 HDF5，但不再生成动作/图像中间 HDF5。手部 retargeting、双臂 IK 和质量检查仍须执行。
-- 单片段入口 `BrainCo-Dataset/scripts/ego/direct_to_lerobot.py` 已实现：94 帧样本与旧的 reviewed 双阶段求解逐值完全一致；三路视频由 LeRobot PyAV loader 验证。批量调度、断点续跑与吞吐测试待补齐。
+- 单片段入口 `BrainCo-Dataset/scripts/ego/direct_to_lerobot.py` 已实现：94 帧样本与旧的 reviewed 双阶段求解逐值完全一致；三路视频由 LeRobot PyAV loader 验证。2026-09-29 又完成两段单核计时转换，同时发现两段在手部关节 NaN 校验处失败。批量调度、断点续跑与代表性吞吐测试待补齐；实测见第 5 节。
 - 本次 100 小时批次沿用先 HDF5 后 LeRobot 的旧链路；不可作为未来直出速度的实测值。
 - 直出试跑从 `BrainCo-Dataset` 根目录执行 `PYTHONPATH=. .venv-mint/bin/python -m scripts.ego.direct_to_lerobot --annotation <原始.hdf5> --video <原始.mp4> --model /mnt/data_oss/egodex_train_20260917/model/official_tianji.xml --task <任务名> --output <全新LeRobot目录>`；最终 IK 模型必须显式指定，避免与手部初解模型混淆。
 
@@ -56,13 +58,39 @@
 
 1h 的首行是历史旧批次，不能与后一行相加当作同一批数据的精确总耗时。未来原始 EgoDex → LeRobot 直出尚无全量测速。
 
+### 原始 EgoDex → LeRobot 单核直出小样本（2026-09-29）
+
+**成功片段的实测外推：约 8.65 单核小时／1 小时原视频（约 8 小时 39 分）。**
+在 A100 上将现有 `BrainCo-Dataset/scripts/ego/direct_to_lerobot.py` 固定到物理 CPU 核 78
+（该机器每核 1 线程）；NumPy/BLAS 线程数设为 1，FFmpeg 子进程继承同一 CPU affinity，
+不使用 GPU。输入为 NAS 上的原始 EgoDex HDF5 标注与 MP4，输出集中于本机 scratch
+`/mnt/egodex_work/direct_benchmark_DZXaLW3O/`。求解、三路视频写入和 LeRobot 元数据生成均计入墙钟时间。
+
+| 原始片段 | 原视频帧数 / 时长 | 墙钟耗时 | 结果 |
+|---|---:|---:|---|
+| `add_remove_lid/1` | 266 帧 / 8.87 秒 | 77.142 秒 | 完整输出 266 帧、三路视频；训练侧 LeRobot loader 可读 |
+| `add_remove_lid/4` | 453 帧 / 15.10 秒 | 90.414 秒 | 失败：手部关节 NaN 位置不一致，未输出 LeRobot |
+| `arrange_topple_dominoes/1` | 580 帧 / 19.33 秒 | 166.754 秒 | 完整输出 580 帧、三路视频；训练侧 LeRobot loader 可读 |
+| `arrange_topple_dominoes/5` | 615 帧 / 20.50 秒 | 149.800 秒 | 同一 NaN 校验失败，未输出 LeRobot |
+
+另以 `add_remove_lid/0` 的 94 帧成功直出作为预热，未纳入计时统计。两段成功样本合计
+846 帧，即 28.2 秒原视频，累计耗时 243.896 秒；`243.896 / 28.2 = 8.65`。
+这里的分母是**成功片段的原视频时长**，不是完整原始语料或含失败开销的最终可用数据时长。
+四段计时中有两段在 `handpose/pipeline/egodex_reviewed.py` 的
+`hand_joints` 一致性检查报 `NaN location mismatch`。检查曾把无效源帧的
+NaN 与求解器保持的有限上一帧关节逐项比较；现仅比较求解器接受的源帧。
+原失败片段的完整回归仍待 A100 可达。
+这些样本只涵盖两种任务、数十秒视频，且输出写到本地 scratch；不能把 8.65 小时
+视作 NAS 正式批量直出的吞吐承诺。机器可复核的样本路径、哈希与结果见同目录
+`benchmark_report.json`；未改动正式 100h 数据和转换脚本。
+
 ### 模型训练：LeRobot → PI0.5
 
 | 训练数据 | 训练任务 | 耗时 | 状态与依据 |
 |---|---|---:|---|
 | 约 1h | 单 A100、batch16、horizon16，首轮 10k 步 | 约 16 小时 05 分 | **已确认**；按训练指标首末时间统计 |
 | 约 1h | 同一实验从 10k 续训到 30k，追加 20k 步 | 约 56.2 小时 | **已确认**；续训实测 |
-| 100h | 单 A100、batch16、horizon16，计划训练 20k 步 | 粗估约 54 小时，排期预留 2–3 天 | **短测外推**；本批 50 步均值 9.80 秒/步（前 5 步后 9.67 秒/步），NAS 读取造成明显波动；正式运行以 SwanLab 实测为准 |
+| 100h | 单 A100、batch16、horizon16，完成 20k 步 | 约 54 小时 36 分 | **已确认**；以正式训练日志的 20k 步完成记录为准，训练前准备与后续评估不计入 |
 
 训练耗时不含数据处理、训练前准备和模型评估；续训实测包含运行期间保存 checkpoint 的开销。
 
@@ -75,10 +103,10 @@
 - 训练仍调用同一个 `scripts/train.py`；本轮没有改 100h 正式 YAML 的模型和优化器设置。共享 `data_loader.py` 保留了针对新版 HuggingFace `Column` 的 Arrow 标量列读取修复，避免 1080 万行时间戳逐行生成 Python 对象；此前 v1 暂存区还包含 SwanLab/指标记录和 Ego 相机 mask 的共享代码改动，不能把整个仓库描述为“infra 完全未改”。
 - 独立实验从 `pi05_base` 开始，batch16、horizon16、20k 步，warmup1000，学习率 5e-5→5e-6。模板：`BrainCo-IL/src/openpi/training/training_config_template/ego/egodex_pi05_100h_offset0_20k.yaml`；本批 offset=0，不能复用 1 小时 offset=0.025m 的统计或 checkpoint。
 - 20k × batch16 = 32 万个采样起点，约为 1,080.985 万训练帧的 **2.96% 一轮**；每个起点监督后续 16 帧，窗口可重叠。先作为基线，之后看验证结果是否延长训练。
-- 正式启动前：黑手腕已补齐；检查帧同步、关节顺序、三路视频和真实 loader；用相同配置跑 50 步 profile、保存 checkpoint 并恢复 1 步；再由用户启动 20k 步，在 SwanLab 监测 loss、学习率、步耗时和 GPU。
+- 本批正式启动前已补齐黑手腕，检查帧同步、关节顺序、三路视频与真实 loader，并完成 50+1 步 profile/恢复；正式训练于 2026-09-26 跑满 20k 步。SwanLab 网页曲线已由完整的 `metrics.jsonl` 补齐，但本地 SwanLab 原记录只到约 730 步，自动日志链路仍需排查。
 - 相机 mask：LeRobot 固定保留三路相机字段；训练配置不再补黑图，设置 `mask_wrist_images=true` 使左右手腕 `image_mask=false`，Transformer 不使用手腕 image token，但 image encoder 仍会执行。
 - 配置管理：Ego 模板集中在 `BrainCo-IL/src/openpi/training/training_config_template/ego/`；新运行的日志与 YAML 快照放忽略的 `runs/ego/`。旧 `logs/egodex_*` 保留为历史记录，不再作为新实验的配置来源。
-- 部署封装：开环前对 checkpoint 执行 `python scripts/export_policy_contract.py <checkpoint>`，生成部署需要的 `policy_contract.json`，并补齐 `train_config.yaml` 的 artifact 元数据。
+- 部署封装：100 小时最终 checkpoint 已手动生成 `policy_contract.json`；新 checkpoint 的保存流程现在自动生成并校验契约，成功后写 `deploy_ready.json`。该自动流程已用序列化配置夹具检查；真实权重加载待 A100 可达。
 - 修改边界：封装只写入目标 checkpoint 目录，不改 5090 的部署代码，也不改 5090 上的 BrainCo-IL 仓库；当前上传的 29999 checkpoint 只新增 contract，并给同目录 `train_config.yaml` 增加外层 artifact 元数据，内部训练配置保留。
 - 固定验证集比较初始化/10k/20k；左右臂、左右手MAE及可视化回放。
 - 训练端与5090部署端的56维选择、三路相机字段和absolute输出契约统一后再验证实机。
@@ -105,11 +133,11 @@ tail -f /mnt/data_nas/ruibin/egodex_lerobot_export_20260922/export.log
 - 重复执行同一命令会校验并跳过已完成source；文件锁阻止同目录重复运行。`Ctrl+C`退出tail不会停止后台导出。
 - 数据选择实测约100.09小时训练集、5.05小时验证集；以正式运行保存的plan为准。
 - 旧导出器小样本训练/验证各 1 段、共 414 帧，验证了头部视频、56 维字段和断点复用；三路相机由后续补齐步骤负责。直出入口另用 94 帧样本验证了三路相机与动作逐值对齐。
-- 正式批量、黑手腕补齐、真实 loader 预检、50 步短测与 checkpoint 恢复均已完成；由用户手动启动 20k 步正式训练。
+- 正式批量、黑手腕补齐、真实 loader 预检、50 步短测与 checkpoint 恢复均已完成；用户启动的 20k 步正式训练也已完成。
 
 ## 8. 100 小时训练操作顺序
 
-在 A100 的 `/mnt/data_nas/ruibin/BrainCo-IL` 执行；黑手腕补齐日志 `/mnt/egodex_work/black_wrist_100h/run.log` 已显示 train 和 val 均 `status=complete`。预检和 50+1 步短测已通过，下列前两段保留作复验命令，正式启动只需执行第三段。这份配置按单张 A100 设计，运行前先用 `nvidia-smi` 选择可用 GPU 并设置 `CUDA_VISIBLE_DEVICES`；否则 JAX 可能看到机器上的全部 GPU。正式训练命令由使用者启动。
+以下是已完成批次在 A100 `/mnt/data_nas/ruibin/BrainCo-IL` 的历史复现命令，不要在现有同名实验目录重新启动。黑手腕补齐日志 `/mnt/egodex_work/black_wrist_100h/run.log` 已显示 train 和 val 均 `status=complete`；预检、50+1 步短测和正式 20k 步均已完成。这份配置按单张 A100 设计，历史运行前通过 `nvidia-smi` 选择可用 GPU 并设置 `CUDA_VISIBLE_DEVICES`，避免 JAX 看到机器上的全部 GPU。
 
 ```bash
 export PYTHONPATH=src OPENPI_DATA_HOME=/mnt/data_nas/ruibin/.cache/openpi
@@ -130,7 +158,7 @@ $PY -u scripts/train.py runs/ego/100h_20k/profile_resume/train_config.yaml \
   > runs/ego/100h_20k/profile_resume/run.log 2>&1
 ```
 
-确认第 50 步 checkpoint、`metrics.jsonl` 的 loss、步耗时和 GPU 占用后，启动正式训练：
+当时确认第 50 步 checkpoint、`metrics.jsonl` 的 loss、步耗时和 GPU 占用后，执行了以下正式训练命令：
 
 ```bash
 mkdir -p runs/ego/100h_20k/formal
@@ -142,4 +170,14 @@ echo $!
 tail -f runs/ego/100h_20k/formal/train.log
 ```
 
-SwanLab 本地面板可用 `/mnt/data_nas/ruibin/.venvs/ego-train/bin/swanlab watch runs/ego/100h_20k/swanlog -h 0.0.0.0 -p 5092` 启动。checkpoint 写入 `checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/`，可在 10k、20k 对固定验证集做对比；部署前按第 6 节生成 `policy_contract.json`。
+SwanLab 本地面板可用 `/mnt/data_nas/ruibin/.venvs/ego-train/bin/swanlab watch runs/ego/100h_20k/swanlog -h 0.0.0.0 -p 5092` 启动。checkpoint 位于 `checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/`；最终 `19999/` 已有部署契约。固定验证集比较仍待完成。
+
+## 9. 后续项目改进 TODO
+
+本轮 Post-train 的优先级、依赖和验收状态以 [POSTTRAIN_TODO.md](POSTTRAIN_TODO.md) 为准。以下保留历史待办背景。
+
+- [ ] 完成自动契约封装的既有 checkpoint 真实加载及 5090 部署端验证；训练保存端代码和夹具检查已完成，历史手动入口保留。
+- [ ] 在原失败样本 `add_remove_lid/4` 与 `arrange_topple_dominoes/5` 上回归 NaN 检查修复，并重新报告成功率和吞吐。
+- [ ] 把单片段 EgoDex 直出扩为批量管线，补齐确定性计划、source 隔离、锁与断点恢复、失败清理、代表性吞吐基准和自动化回归测试，再决定旧 HDF5 中转实现的归档/退役。
+- [ ] 为 OSS 原始/历史中间产物、NAS 权威 LeRobot 与 checkpoint、本地 scratch 建立清单和保留策略；先固定引用与校验和，再考虑迁移或清理现有 100 小时数据。
+- [ ] 修齐黑手腕补齐后的 train/val `provenance.json`，并验证视频、元数据和报告一致；为数据转换与固定验证集评估补齐版本化结果。

@@ -7,15 +7,12 @@ import numpy as np
 
 from openpi import transforms
 from openpi.models import model as _model
+from openpi.policies.brainco_contract import JOINT_GROUP_DIMS
+
+SOURCE_MASK_KEY = "__openpi_mask_wrist_images__"
 
 # BrainCo robot action dimension: dual-arm dual-dexterous-hand
 BRAINCO_ACTION_DIM = 56
-JOINT_GROUP_DIMS = {
-    "left_arm": 7,
-    "right_arm": 7,
-    "left_hand": 21,
-    "right_hand": 21,
-}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -186,6 +183,19 @@ class EgoDexMissingCameras(transforms.DataTransformFn):
 
 
 @dataclasses.dataclass(frozen=True)
+class SourceAwareRepackTransform(transforms.DataTransformFn):
+    """Repack normal policy keys while retaining an optional source camera mask."""
+
+    structure: dict
+
+    def __call__(self, data: dict) -> dict:
+        repacked = transforms.RepackTransform(self.structure)(data)
+        if SOURCE_MASK_KEY in data:
+            repacked[SOURCE_MASK_KEY] = data[SOURCE_MASK_KEY]
+        return repacked
+
+
+@dataclasses.dataclass(frozen=True)
 class BrainCoInputs(transforms.DataTransformFn):
     """Convert inputs from BrainCo dataset to the format expected by Pi0 models.
 
@@ -206,7 +216,8 @@ class BrainCoInputs(transforms.DataTransformFn):
             left_wrist_image = _parse_image(data["observation/left_wrist_image"])
             right_wrist_image = _parse_image(data["observation/right_wrist_image"])
 
-        wrist_images_valid = not (self.egodex_head_only or self.mask_wrist_images)
+        source_mask = data.get(SOURCE_MASK_KEY, self.mask_wrist_images)
+        wrist_images_valid = not (self.egodex_head_only or bool(source_mask))
 
         inputs = {
             "state": data["observation/state"],

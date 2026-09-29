@@ -56,6 +56,12 @@ import openpi.training.optimizer as _optimizer
 import openpi.training.sharding as sharding
 import openpi.training.utils as training_utils
 import openpi.training.weight_loaders as _weight_loaders
+try:
+    from scripts.export_policy_contract import package_checkpoint
+except ModuleNotFoundError:
+    # `python scripts/train.py` places scripts/, rather than the repository
+    # root, on sys.path.
+    from export_policy_contract import package_checkpoint
 
 
 def init_logging():
@@ -296,20 +302,6 @@ def main(config: _config.TrainConfig):
         sharding=data_sharding,
         shuffle=True,
     )
-    data_iter = iter(data_loader)
-    batch = next(data_iter)
-    logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
-
-    # 记录首个 batch 的图像,快速检查相机顺序和预处理结果.
-    try:
-        images_to_log = [
-            swanlab.Image(np.concatenate([np.array(img[i]) for img in batch[0].images.values()], axis=1))
-            for i in range(min(5, len(next(iter(batch[0].images.values())))))
-        ]
-        swanlab.log({"camera_views": images_to_log}, step=0)
-    except Exception as e:
-        logging.warning(f"Failed to log images to SwanLab: {e}")
-
     # 恢复训练时先构建预期的抽象 TrainState 结构,
     # 再由 Orbax 将参数和优化器的具体数值恢复进去.
     train_state, train_state_sharding = init_train_state(config, init_rng, mesh, resume=resuming)
@@ -318,6 +310,12 @@ def main(config: _config.TrainConfig):
 
     if resuming:
         train_state = _checkpoints.restore_state(checkpoint_manager, train_state, data_loader)
+    start_step = int(train_state.step)
+    data_loader.set_start_step(start_step)
+    data_iter = iter(data_loader)
+    batch = next(data_iter) if start_step < config.num_train_steps else None
+    if batch is not None:
+        logging.info(f"Initialized data loader:\n{training_utils.array_tree_to_info(batch)}")
 
     # 将完整的前向、反向和优化器更新编译为一个 XLA 程序.
     # donate_argnums 允许 JAX 原地复用旧 TrainState 的缓冲区.
@@ -328,7 +326,6 @@ def main(config: _config.TrainConfig):
         donate_argnums=(1,),
     )
 
-    start_step = int(train_state.step)
     pbar = tqdm.tqdm(
         range(start_step, config.num_train_steps),
         initial=start_step,
@@ -356,6 +353,15 @@ def main(config: _config.TrainConfig):
             reduced_info.update(learning_rate=float(lr_fn(step)),
                                 seconds_per_step=elapsed / len(infos),
                                 samples_per_second=len(infos) * config.batch_size / max(elapsed, 1e-9))
+            if plan := data_loader.coverage_plan:
+                completed = step + 1
+                real_used = completed * plan.real_count // plan.steps
+                reduced_info.update(
+                    ego_samples=completed * config.batch_size - real_used,
+                    real_samples=real_used,
+                    real_coverage=min(real_used, plan.lengths[plan.coverage_index]) /
+                    plan.lengths[plan.coverage_index],
+                )
             try:
                 gpu_command = [
                     "nvidia-smi",
@@ -373,13 +379,22 @@ def main(config: _config.TrainConfig):
                 logging.debug("GPU telemetry unavailable: %s", error)
             info_str = ", ".join(f"{k}={v:.4f}" for k, v in reduced_info.items())
             pbar.write(f"Step {step}: {info_str}")
-            swanlab.log(reduced_info, step=step)
             if jax.process_index() == 0:
                 with metrics_path.open("a") as stream:
                     stream.write(json.dumps(dict(step=step, unix_time=time.time(), **reduced_info)) + "\n")
+                    stream.flush()
+                    os.fsync(stream.fileno())
+            try:
+                swanlab.log(reduced_info, step=step)
+            except Exception as error:
+                logging.warning("SwanLab upload failed at step %s: %s", step, error)
+                if jax.process_index() == 0:
+                    with (config.checkpoint_dir / "swanlab_pending.jsonl").open("a") as stream:
+                        stream.write(json.dumps(dict(step=step, **reduced_info)) + "\n")
             infos = []
             metric_clock = time.monotonic()
-        batch = next(data_iter)
+        if step + 1 < config.num_train_steps:
+            batch = next(data_iter)
 
         should_save_interval = step % config.save_interval == 0 and step > start_step
         should_save_final = config.save_final_checkpoint and step == config.num_train_steps - 1
@@ -390,10 +405,28 @@ def main(config: _config.TrainConfig):
             checkpoint_manager.wait_until_finished()
             if jax.process_index() == 0:
                 _config_io.save_train_config(config, config.checkpoint_dir / str(step))
+                _finalize_deployment_checkpoint(config, step)
 
     logging.info("Waiting for checkpoint manager to finish")
     checkpoint_manager.wait_until_finished()
     swanlab.finish()
+
+
+def _finalize_deployment_checkpoint(config: _config.TrainConfig, step: int) -> None:
+    """Publish readiness only after params, norm, config and contract are present."""
+    root = config.checkpoint_dir / str(step)
+    try:
+        data_config = config.data.create(config.assets_dirs, config.model)
+        if data_config.asset_id is None or not (root / "assets" / data_config.asset_id / "norm_stats.json").is_file():
+            raise FileNotFoundError("checkpoint normalization asset is missing")
+        result = package_checkpoint(root, robot_interface=config.deployment_robot_interface,
+                                    contract_only=False)
+        marker = root / "deploy_ready.json"
+        temporary = marker.with_name(marker.name + ".tmp")
+        temporary.write_text(json.dumps(result, indent=2) + "\n")
+        os.replace(temporary, marker)
+    except Exception:
+        logging.exception("Checkpoint %s remains recoverable but is not deployment ready", root)
 
 
 if __name__ == "__main__":

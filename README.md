@@ -14,6 +14,27 @@ only the paths used by BrainCo robots:
 Upstream robot examples, PI0-FAST, RLDS/DROID, the PyTorch PI0 implementation,
 WebSocket serving, and the old BrainCo ROS2 example are not part of this repository.
 
+## EgoDex Direct Export Status
+
+**Single-core sample benchmark (2026-09-29): about 8.65 hours per source-video
+hour for successful direct EgoDex → LeRobot conversions.** Two timed clips
+(846 frames total) completed; two others exposed a hand-joint NaN check issue.
+The check is corrected in BrainCo-Dataset; rerunning those source clips remains
+pending rerun on A100. The completed 100-hour training dataset used the HDF5
+intermediate pipeline. See the [EgoDex pipeline record](docs/ego/README.md).
+
+## Ego 100h Post-train Preparation
+
+Three PI0.5 mixed-source recipes, deterministic coverage sampling, per-source
+camera masks, real-data review tools, shared-norm generation and checkpoint
+contract packaging are prepared. **No post-train update has been run.** The
+real-data review manifest awaits human decisions. A100 is reachable through
+`brainco-a100-6007`; shared norm, model-forward checks and deployment load
+verification remain to be run there.
+See the [status and TODO](docs/ego/POSTTRAIN_TODO.md),
+[architecture and asset review](docs/ego/POSTTRAIN_ARCHITECTURE.md) and
+[start/recovery guide](docs/ego/POSTTRAIN_RUNBOOK.md).
+
 ## Joint Layout
 
 The default 56D layout is:
@@ -50,8 +71,10 @@ Simple scalar values can also be overridden from the CLI when starting from the
 `pi05_brainco_56d` or `act_brainco_56d` recipe.
 
 Training writes the fully resolved config to the run directory and every step
-checkpoint as `train_config.yaml`. That file, the checkpoint parameters, and
-normalization assets are the complete deployment artifact.
+checkpoint as `train_config.yaml`. Completed checkpoints are then packaged with
+`policy_contract.json` and `deploy_ready.json` after the normalization asset is
+verified. A packaging failure leaves the checkpoint recoverable without a
+deployment-ready marker.
 
 ## Deploy Contract
 

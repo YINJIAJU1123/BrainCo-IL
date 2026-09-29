@@ -12,26 +12,13 @@ from pathlib import Path
 import yaml
 
 
-JOINT_GROUPS = {
-    "left_arm": [f"left_arm_joint{i}" for i in range(1, 8)],
-    "right_arm": [f"right_arm_joint{i}" for i in range(1, 8)],
-    "left_hand": [
-        "left_little_MPR_joint", "left_little_MCP_joint", "left_little_PIP_joint", "left_little_DIP_joint",
-        "left_ring_MPR_joint", "left_ring_MCP_joint", "left_ring_PIP_joint", "left_ring_DIP_joint",
-        "left_middle_MPR_joint", "left_middle_MCP_joint", "left_middle_PIP_joint", "left_middle_DIP_joint",
-        "left_index_MPR_joint", "left_index_MCP_joint", "left_index_PIP_joint", "left_index_DIP_joint",
-        "left_thumb_MCP_joint", "left_thumb_PIP_joint", "left_thumb_DIP_joint", "left_thumb_CMP_joint",
-        "left_thumb_CMR_joint",
-    ],
-    "right_hand": [
-        "right_little_MPR_joint", "right_little_MCP_joint", "right_little_PIP_joint", "right_little_DIP_joint",
-        "right_ring_MPR_joint", "right_ring_MCP_joint", "right_ring_PIP_joint", "right_ring_DIP_joint",
-        "right_middle_MPR_joint", "right_middle_MCP_joint", "right_middle_PIP_joint", "right_middle_DIP_joint",
-        "right_index_MPR_joint", "right_index_MCP_joint", "right_index_PIP_joint", "right_index_DIP_joint",
-        "right_thumb_MCP_joint", "right_thumb_PIP_joint", "right_thumb_DIP_joint", "right_thumb_CMP_joint",
-        "right_thumb_CMR_joint",
-    ],
-}
+# The schema module is intentionally dependency-free so this legacy manual
+# exporter also works without importing the JAX policy runtime.
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+from openpi.policies.brainco_contract import JOINT_GROUPS
+
+
 CAMERAS = [
     "observation.images.cam_head",
     "observation.images.cam_left_wrist",
@@ -62,12 +49,23 @@ def package_checkpoint(root: Path, *, robot_interface: str, contract_only: bool)
         raise ValueError("train_config.yaml has no train_config payload")
     fields = train_payload.get("fields", {})
     model_fields = fields.get("model", {}).get("fields", {})
+    data_fields = fields.get("data", {}).get("fields", {})
+    io_fields = data_fields.get("policy_io", {}).get("fields", {})
     action_dim = int(model_fields.get("action_dim", 0))
     chunk_steps = int(model_fields.get("action_horizon", 0))
+    action_groups = io_fields.get("action_groups", list(JOINT_GROUPS))
+    state_groups = io_fields.get("state_groups", list(JOINT_GROUPS))
+    if action_groups != list(JOINT_GROUPS) or state_groups != list(JOINT_GROUPS):
+        raise ValueError("deployment protocol requires the ordered dual-arm 56D joint groups")
     expected_dim = sum(len(names) for names in JOINT_GROUPS.values())
     if action_dim != expected_dim or chunk_steps <= 0:
         raise ValueError(f"expected action_dim={expected_dim} and positive action_horizon, got {action_dim}/{chunk_steps}")
     checkpoint_id = str(raw.get("checkpoint_id") or f"{fields.get('name', root.parent.name)}_step{root.name}")
+    head_camera = data_fields.get("head_camera_key", CAMERAS[0])
+    cameras = [head_camera, *CAMERAS[1:]]
+    policy_rate_hz = float(fields.get("policy_rate_hz", 30.0))
+    if policy_rate_hz <= 0:
+        raise ValueError("policy_rate_hz must be positive")
     unsigned = {
         "generated": True,
         "do_not_edit": True,
@@ -76,10 +74,10 @@ def package_checkpoint(root: Path, *, robot_interface: str, contract_only: bool)
         "checkpoint_id": checkpoint_id,
         "robot_interface": robot_interface,
         "required_joint_groups": JOINT_GROUPS,
-        "required_cameras": CAMERAS,
+        "required_cameras": cameras,
         "output_joint_groups": JOINT_GROUPS,
         "chunk_steps": chunk_steps,
-        "policy_rate_hz": 30.0,
+        "policy_rate_hz": policy_rate_hz,
     }
     contract = dict(unsigned)
     contract["contract_hash"] = _sha256_json(unsigned)
@@ -102,7 +100,7 @@ def package_checkpoint(root: Path, *, robot_interface: str, contract_only: bool)
         "contract_hash": contract["contract_hash"],
         "action_dim": action_dim,
         "chunk_steps": chunk_steps,
-        "policy_rate_hz": 30.0,
+        "policy_rate_hz": policy_rate_hz,
         "train_config_wrapped": not contract_only,
     }
 
