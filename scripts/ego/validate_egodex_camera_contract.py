@@ -32,11 +32,15 @@ def main(output):
     valid=np.array([[True,False,False,True]],dtype=bool)
     attn=np.asarray(make_attn_mask(valid,np.array([False,False,False,True])))
     assert not attn[0,3,1:3].any() and attn[0,3,0] and attn[0,3,3]
-    root=Path(__file__).resolve().parents[1]
-    cfg=config_io.load_train_config(root/"src/openpi/training/training_config_template/egodex_pi05_smoke_20260916.yaml")
+    root=Path(__file__).resolve().parents[2]
+    cfg=config_io.load_train_config(root/"src/openpi/training/training_config_template/ego/egodex_pi05_smoke_20260916.yaml")
     import yaml
     restored=config_io._from_plain(yaml.safe_load(config_io.to_yaml(cfg))["train_config"])
-    assert restored.data.egodex_head_only
+    assert restored.data.mask_wrist_images and not restored.data.egodex_head_only
+    masked=BrainCoInputs(model.ModelType.PI05,mask_wrist_images=True)(sample)
+    assert masked["image_mask"]["base_0_rgb"]
+    assert not masked["image_mask"]["left_wrist_0_rgb"] and not masked["image_mask"]["right_wrist_0_rgb"]
+    np.testing.assert_array_equal(masked["image"]["left_wrist_0_rgb"],sample["observation/left_wrist_image"])
     report=dict(three_camera_pixels_and_masks_unchanged=True,pre_repack_uint8_black=True,
                 inference_head_only_supported=True,missing_wrist_attention_blocked=True,
                 recipe_roundtrip_preserves_camera_contract=True)

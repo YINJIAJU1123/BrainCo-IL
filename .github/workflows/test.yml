@@ -38,4 +38,4 @@ jobs:
             --ignore=src/openpi/models/tokenizer_test.py \
             --ignore=src/openpi/policies/policy_test.py \
             --ignore=src/openpi/training/data_loader_test.py \
-            --ignore=scripts/train_test.py
+            --ignore=tests/scripts/train_test.py

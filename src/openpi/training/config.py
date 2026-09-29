@@ -238,8 +238,11 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
     arm_dof: int = 7
     hand_dof: int = 21
     head_camera_key: str = "observation.images.stereo_right"
-    # EgoDex has only a head sensor: black wrist placeholders with masks False.
+    # Legacy compatibility switch for old head-only datasets. New LeRobot exports
+    # contain explicit wrist streams and leave this disabled.
     egodex_head_only: bool = False
+    # Keep explicit wrist streams in the dataset while masking their tokens from attention.
+    mask_wrist_images: bool = False
     revo3_eef_joint_hand_to_joint_hand: bool = False
     # 原始数据集中的 action 键名;LeRobot loader 会在 repack transform 前使用.
     action_sequence_keys: Sequence[str] = ("action",)
@@ -283,7 +286,9 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
             )
         input_transforms.append(
             brainco_policy.BrainCoInputs(
-                model_type=model_config.model_type, egodex_head_only=self.egodex_head_only
+                model_type=model_config.model_type,
+                egodex_head_only=self.egodex_head_only,
+                mask_wrist_images=self.mask_wrist_images,
             )
         )
 

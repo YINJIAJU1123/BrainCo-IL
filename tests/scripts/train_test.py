@@ -8,7 +8,7 @@ os.environ["JAX_PLATFORMS"] = "cpu"
 
 from openpi.training import config as _config
 
-from . import train
+from scripts import train
 
 
 @pytest.mark.parametrize("config_name", ["debug"])

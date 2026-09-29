@@ -8,6 +8,7 @@ DataLoader and therefore never decodes camera videos.
 The transform matches the current BrainCo Pi0.5 training setup:
 
 * raw Revo3 vectors: 70D = two 7D EEF poses + two 7D arms + two 21D hands
+  (already-converted 56D state/action vectors are also accepted)
 * model vectors: 56D = left arm + right arm + left hand + right hand
 * action chunks: episode-end clamping to ``action_horizon``
 * action representation: arm dimensions are delta; hand dimensions are absolute
@@ -69,14 +70,17 @@ def _episode_paths(dataset: Path) -> list[tuple[int, Path, int | None]]:
     return result
 
 
-def _read_vector_column(path: Path, column: str) -> np.ndarray:
-    table = pq.read_table(path, columns=[column])
-    values = np.asarray(table[column].to_pylist(), dtype=np.float32)
-    if values.ndim != 2:
-        raise ValueError(f"{path}: expected {column!r} to be a vector column, got shape {values.shape}")
-    if not np.all(np.isfinite(values)):
-        raise ValueError(f"{path}: {column!r} contains NaN or Inf")
-    return values
+def _read_vector_columns(path: Path, columns: tuple[str, ...]) -> tuple[np.ndarray, ...]:
+    table = pq.read_table(path, columns=list(columns))
+    result = []
+    for column in columns:
+        values = np.asarray(table[column].to_pylist(), dtype=np.float32)
+        if values.ndim != 2:
+            raise ValueError(f"{path}: expected {column!r} to be a vector column, got shape {values.shape}")
+        if not np.all(np.isfinite(values)):
+            raise ValueError(f"{path}: {column!r} contains NaN or Inf")
+        result.append(values)
+    return tuple(result)
 
 
 def _build_action_chunks(actions: np.ndarray, action_horizon: int) -> np.ndarray:
@@ -89,6 +93,14 @@ def _build_action_chunks(actions: np.ndarray, action_horizon: int) -> np.ndarray
     return actions[np.minimum(frame_indices + offsets, len(actions) - 1)]
 
 
+def _to_56d(values: np.ndarray, *, key: str) -> np.ndarray:
+    if values.shape[-1] == 56:
+        return values
+    if values.shape[-1] == 70:
+        return values[:, REVO3_70D_TO_56D]
+    raise ValueError(f"Expected {key} dimension 56 or raw Revo3 dimension 70, got {values.shape[-1]}")
+
+
 def _transform_episode(
     state: np.ndarray,
     actions: np.ndarray,
@@ -96,15 +108,13 @@ def _transform_episode(
     action_horizon: int,
     arm_dims: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    if state.shape != actions.shape:
-        raise ValueError(f"state/action shape mismatch: {state.shape} != {actions.shape}")
-    if state.shape[-1] != 70:
-        raise ValueError(f"Expected raw Revo3 state/action dimension 70, got {state.shape[-1]}")
+    if len(state) != len(actions):
+        raise ValueError(f"state/action frame count mismatch: {len(state)} != {len(actions)}")
     if arm_dims < 0 or arm_dims > len(REVO3_70D_TO_56D):
         raise ValueError(f"arm_dims must be in [0, 56], got {arm_dims}")
 
-    state_56d = state[:, REVO3_70D_TO_56D]
-    action_56d = actions[:, REVO3_70D_TO_56D]
+    state_56d = _to_56d(state, key="observation.state")
+    action_56d = _to_56d(actions, key="action")
     action_chunks = _build_action_chunks(action_56d, action_horizon)
     action_chunks[..., :arm_dims] -= state_56d[:, None, :arm_dims]
     return state_56d, action_chunks
@@ -124,8 +134,7 @@ def compute_stats(
     for episode_index, path, expected_length in tqdm.tqdm(episodes, desc="Computing parquet stats"):
         if not path.is_file():
             raise FileNotFoundError(path)
-        state = _read_vector_column(path, "observation.state")
-        actions = _read_vector_column(path, "action")
+        state, actions = _read_vector_columns(path, ("observation.state", "action"))
         if expected_length is not None and len(state) != expected_length:
             raise ValueError(
                 f"Episode {episode_index}: metadata length {expected_length} does not match parquet length {len(state)}"

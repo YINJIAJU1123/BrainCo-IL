@@ -30,7 +30,7 @@ class Policy:
         self._sample_kwargs = sample_kwargs or {}
         self._metadata = metadata or {}
         self._sample_actions = nnx_utils.module_jit(model.sample_actions)
-        self._rng = rng or jax.random.key(0)
+        self._rng = jax.random.key(0) if rng is None else rng
 
     def infer(self, obs: dict, *, noise: np.ndarray | None = None) -> dict:
         inputs = jax.tree.map(lambda value: value, obs)

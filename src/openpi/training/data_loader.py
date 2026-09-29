@@ -37,6 +37,22 @@ def _patch_torch_stack_for_datasets_column() -> None:
 
     def stack_compat(input, *stack_args, **stack_kwargs):
         if input.__class__.__name__ == "Column" and input.__class__.__module__.startswith("datasets."):
+            # Newer datasets returns a lazy Column even when the source Dataset is
+            # Arrow-backed.  Materializing a scalar column with list(input) creates
+            # one Python object per row; for the 100 h dataset this costs minutes and
+            # more than 10 GiB just to validate timestamps.  Use Arrow's vectorized
+            # conversion for primitive columns and keep the generic fallback for
+            # nested/image columns or custom formatting transforms.
+            source = getattr(input, "source", None)
+            column_name = getattr(input, "column_name", None)
+            arrow_data = getattr(source, "_data", None)
+            if arrow_data is not None and column_name is not None:
+                try:
+                    values = arrow_data.column(column_name).to_numpy(zero_copy_only=False)
+                    if values.dtype != object:
+                        return torch.as_tensor(values.copy())
+                except (AttributeError, KeyError, TypeError, ValueError):
+                    pass
             values = list(input)
             if values and torch.is_tensor(values[0]):
                 return original_stack(values, *stack_args, **stack_kwargs)

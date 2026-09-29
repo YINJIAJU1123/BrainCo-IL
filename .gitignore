@@ -80,6 +80,7 @@ cover/
 
 # Local training runtime artifacts
 logs/
+runs/
 swanlog/
 *.pid
 local_settings.py

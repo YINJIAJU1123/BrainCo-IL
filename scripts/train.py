@@ -13,9 +13,12 @@ PI0.5 和 ACT 分别编写分支.
 import dataclasses
 import functools
 import logging
+import json
 import os
 import pathlib
 import platform
+import subprocess
+import time
 from typing import Any
 import warnings
 
@@ -84,21 +87,25 @@ def init_swanlab(config: _config.TrainConfig, *, resuming: bool, enabled: bool =
     if not ckpt_dir.exists():
         raise FileNotFoundError(f"Checkpoint directory {ckpt_dir} does not exist.")
 
+    experiment_name = os.environ.get("SWANLAB_EXPERIMENT_NAME", config.exp_name)
     init_kwargs = {
         "project": config.project_name,
-        "workspace": os.environ.get("SWANLAB_WORKSPACE", "YinJiaju"),
-        "experiment_name": config.exp_name,
-        "name": config.exp_name,
+        "experiment_name": experiment_name,
+        "name": experiment_name,
         "mode": os.environ.get("SWANLAB_MODE", "offline"),
+        "logdir": os.environ.get("SWANLAB_LOG_DIR", "./swanlog"),
         "config": dataclasses.asdict(config),
     }
+    if workspace := os.environ.get("SWANLAB_WORKSPACE"):
+        init_kwargs["workspace"] = workspace
     if api_key_file := os.environ.get("SWANLAB_API_KEY_FILE"):
         api_key = pathlib.Path(api_key_file).expanduser().read_text().strip()
         if not api_key:
             raise ValueError(f"SWANLAB_API_KEY_FILE is empty: {api_key_file}")
         swanlab.login(api_key=api_key, relogin=True, save=False)
         init_kwargs["settings"] = swanlab.Settings(api_key=api_key, interactive=False)
-    if resuming:
+    new_run_on_resume = os.environ.get("SWANLAB_NEW_RUN_ON_RESUME", "0") == "1"
+    if resuming and not new_run_on_resume:
         run_id_path = ckpt_dir / "swanlab_id.txt"
         if run_id_path.exists():
             init_kwargs["id"] = run_id_path.read_text().strip()
@@ -106,8 +113,9 @@ def init_swanlab(config: _config.TrainConfig, *, resuming: bool, enabled: bool =
 
     run = swanlab.init(**init_kwargs)
     run_id = getattr(run, "id", None)
-    if run_id and not resuming:
-        (ckpt_dir / "swanlab_id.txt").write_text(str(run_id))
+    if run_id and (not resuming or new_run_on_resume):
+        run_id_path = ckpt_dir / ("swanlab_id.continuation.txt" if new_run_on_resume else "swanlab_id.txt")
+        run_id_path.write_text(str(run_id))
 
 
 def _load_weights_and_validate(loader: _weight_loaders.WeightLoader, params_shape: at.Params) -> at.Params:
@@ -329,6 +337,9 @@ def main(config: _config.TrainConfig):
     )
 
     infos = []
+    metric_clock = time.monotonic()
+    lr_fn = config.lr_schedule.create()
+    metrics_path = config.checkpoint_dir / "metrics.jsonl"
     for step in pbar:
         # mesh 上下文让深层网络可以添加激活值分片约束,
         # 无需在每一层函数调用中显式传递 mesh.
@@ -338,10 +349,36 @@ def main(config: _config.TrainConfig):
         if step % config.log_interval == 0:
             stacked_infos = common_utils.stack_forest(infos)
             reduced_info = jax.device_get(jax.tree.map(jnp.mean, stacked_infos))
+            elapsed = time.monotonic() - metric_clock
+            reduced_info = {k: float(v) for k, v in reduced_info.items()}
+            if not all(np.isfinite(v) for v in reduced_info.values()):
+                raise FloatingPointError(f"Nonfinite training metric at step {step}: {reduced_info}")
+            reduced_info.update(learning_rate=float(lr_fn(step)),
+                                seconds_per_step=elapsed / len(infos),
+                                samples_per_second=len(infos) * config.batch_size / max(elapsed, 1e-9))
+            try:
+                gpu_command = [
+                    "nvidia-smi",
+                    "--query-gpu=memory.used,utilization.gpu",
+                    "--format=csv,noheader,nounits",
+                ]
+                if gpu_selector := os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")[0].strip():
+                    gpu_command.extend(["--id", gpu_selector])
+                gpu = subprocess.check_output(
+                    gpu_command,
+                    text=True, timeout=3,
+                ).strip().splitlines()[0].split(",")
+                reduced_info.update(gpu_memory_mib=float(gpu[0]), gpu_utilization_percent=float(gpu[1]))
+            except (OSError, subprocess.SubprocessError, ValueError, IndexError) as error:
+                logging.debug("GPU telemetry unavailable: %s", error)
             info_str = ", ".join(f"{k}={v:.4f}" for k, v in reduced_info.items())
             pbar.write(f"Step {step}: {info_str}")
             swanlab.log(reduced_info, step=step)
+            if jax.process_index() == 0:
+                with metrics_path.open("a") as stream:
+                    stream.write(json.dumps(dict(step=step, unix_time=time.time(), **reduced_info)) + "\n")
             infos = []
+            metric_clock = time.monotonic()
         batch = next(data_iter)
 
         should_save_interval = step % config.save_interval == 0 and step > start_step

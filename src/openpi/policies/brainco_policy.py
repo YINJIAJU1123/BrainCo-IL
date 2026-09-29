@@ -194,6 +194,7 @@ class BrainCoInputs(transforms.DataTransformFn):
 
     model_type: _model.ModelType
     egodex_head_only: bool = False
+    mask_wrist_images: bool = False
 
     def __call__(self, data: dict) -> dict:
         stereo_right_image = _parse_image(data["observation/image"])
@@ -205,6 +206,8 @@ class BrainCoInputs(transforms.DataTransformFn):
             left_wrist_image = _parse_image(data["observation/left_wrist_image"])
             right_wrist_image = _parse_image(data["observation/right_wrist_image"])
 
+        wrist_images_valid = not (self.egodex_head_only or self.mask_wrist_images)
+
         inputs = {
             "state": data["observation/state"],
             "image": {
@@ -214,8 +217,8 @@ class BrainCoInputs(transforms.DataTransformFn):
             },
             "image_mask": {
                 "base_0_rgb": np.True_,
-                "left_wrist_0_rgb": np.bool_(not self.egodex_head_only),
-                "right_wrist_0_rgb": np.bool_(not self.egodex_head_only),
+                "left_wrist_0_rgb": np.bool_(wrist_images_valid),
+                "right_wrist_0_rgb": np.bool_(wrist_images_valid),
             },
         }
 

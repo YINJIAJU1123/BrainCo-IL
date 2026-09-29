@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -uo pipefail
 cd /mnt/data_nas/ruibin/BrainCo-IL
-logdir=logs/egodex_smoke_20260916
+logdir=runs/egodex/smoke_20260916
+mkdir -p "$logdir"
 export UV_CACHE_DIR=/mnt/data_nas/ruibin/.cache/uv
 export GIT_LFS_SKIP_SMUDGE=1
 python=/mnt/data_nas/ruibin/.venvs/ego-train/bin/python
