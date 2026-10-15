@@ -1,12 +1,12 @@
 # Ego 100h Post-train：审核后启动与恢复说明
 
-本文件是后续操作顺序；当前 **无已分配 A100 GPU，尚未启动训练**。状态同步于 2026-10-15，证据入口见 [README](README.md#文档导航与更新依据)，具体完成条件见 [TODO](POSTTRAIN_TODO.md)。CPU 准备和三组真实混合 loader 检查已完成；原 100h 在 5090 独立副本离线前向通过。新共享 norm 的三组模型前向与实际保存恢复仍待 GPU。
+本文件是后续操作顺序；当前 **使用用户指定的 A100 5 卡，开训验收已通过，第一组正式启动**。状态同步于 2026-10-15，证据入口见 [README](README.md#文档导航与更新依据)，具体完成条件见 [TODO](POSTTRAIN_TODO.md)。CPU 准备和三组真实混合 loader 检查已完成；原 100h 在 5090 独立副本离线前向通过。新共享 norm 三组前向及实际保存恢复、部署加载均已通过。
 
 ## 0. 恢复后的代码与部署接口
 
-A100 已同步准备版本：IL `9a66657`、Dataset `c5bb19b`。原改动保存在 `/mnt/data_nas/ruibin/ego-posttrain-backups/20261015_140810`，两仓库另有 `refs/backup/ego-pre-sync-20261015`；不要直接重新应用整个旧 stash，原代码已纳入当前提交。5090 根盘约剩 40 GB；后续运行前重新确认空间与 GPU。
+A100 已同步准备版本：IL 准备提交 `25c5e5e`、Dataset `c5bb19b`。原改动保存在 `/mnt/data_nas/ruibin/ego-posttrain-backups/20261015_140810`，两仓库另有 `refs/backup/ego-pre-sync-20261015`；不要直接重新应用整个旧 stash，原代码已纳入当前提交。5090 根盘约剩 40 GB；后续运行前重新确认空间与 GPU。
 
-5090 共享 backend 仍使用原 `/home/phoebe/Brainco/BrainCo-IL`（`ac65a34`）。本项目后续工作仅在 `/home/phoebe/Brainco/ego-posttrain/BrainCo-IL`，分支 `ego-posttrain-mask`、提交 `cb25680`；该独立副本已修复旧 Ego mask，18 项 CPU 检查通过。运行时从独立目录设置 `PYTHONPATH=src`，使用已有 `/home/phoebe/Brainco/BrainCo-IL/.venv/bin/python` 的依赖；本轮未改共享环境。原 100h 完整权重、固定噪声腕 mask 不变性和离线输出均已通过；三组新 norm 的模型前向仍待 GPU。ROS 反馈必须按 `msg.name` 重排。
+5090 共享 backend 仍使用原 `/home/phoebe/Brainco/BrainCo-IL`（`ac65a34`）。本项目后续工作仅在 `/home/phoebe/Brainco/ego-posttrain/BrainCo-IL`，分支 `ego-posttrain-mask`、提交 `cb25680`；该独立副本已修复旧 Ego mask，18 项 CPU 检查通过。运行时从独立目录设置 `PYTHONPATH=src`，使用已有 `/home/phoebe/Brainco/BrainCo-IL/.venv/bin/python` 的依赖；本轮未改共享环境。原 100h 完整权重、固定噪声腕 mask 不变性和离线输出均已通过；三组新 norm 的模型前向已通过。ROS 反馈必须按 `msg.name` 重排。
 
 ## 1. 审核与派生数据
 
@@ -19,7 +19,7 @@ A100 已同步准备版本：IL `9a66657`、Dataset `c5bb19b`。原改动保存�
 
 ## 2. A100 基线、norm 与配置
 
-运行前重新核对代码与路径。10 月 15 日 A100/Mac 代码 HEAD 已一致（IL `9a66657`、Dataset `c5bb19b`）；本轮文档另同步至 A100。Ego `/mnt/data_nas/ruibin/dataset/egodex_100h_offset0_lerobot21/train` 和 `.../offset0_bs16_steps20000_v1/19999` 已确认存在，审核派生真机目录和共享 norm 已生成。
+运行前重新核对代码与路径。10 月 15 日 A100/Mac 代码 HEAD 已一致（IL 准备提交 `25c5e5e`、Dataset `c5bb19b`）；本轮文档另同步至 A100。Ego `/mnt/data_nas/ruibin/dataset/egodex_100h_offset0_lerobot21/train` 和 `.../offset0_bs16_steps20000_v1/19999` 已确认存在，审核派生真机目录和共享 norm 已生成。
 
 本轮继续使用既有 100h 数据。若使用 `direct_to_lerobot.py` 生成的新 Ego 派生数据，先完成 TODO 中的 42D 手指名称/数值顺序修复及逐字段验收；10 月 5 日审计抽查的 100h 旧 exporter 样本逐值正确，新直出样本不能沿用这个结论。
 
@@ -43,4 +43,10 @@ A100 已同步准备版本：IL `9a66657`、Dataset `c5bb19b`。原改动保存�
 
 ## 2026-10-15 已生成统计
 
-共享 norm SHA-256：`94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb`。三组 CPU loader 检查已完成；不能用此替代 GPU 模型前向。收到明确 GPU 分配后先执行第 3 节，再进行实际保存/恢复与日志验收。当前不创建新的 DSW 或连接正在配置的 4090。
+共享 norm SHA-256：`94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb`。三组 CPU loader 检查已完成；不能用此替代 GPU 模型前向。当前使用用户指定的 5 卡执行第 3 节，再进行实际保存/恢复与日志验收。当前不创建新的 DSW 或连接正在配置的 4090。
+
+## 2026-10-15 云端日志与执行入口
+
+用户已授权验收通过后启动三组实验并上传 SwanLab。按 1:1 → 3:1 → 5:2 在同一张 5 卡串行执行，各组仍从原 19999 权重初始化独立 optimizer；验收用的短测 checkpoint 不作为生产初始化。执行脚本与状态保存在 `/mnt/data_nas/ruibin/ego-posttrain-prep/20261015/`，当前入口 `validate_and_train.py`、日志 `pipeline_v3.log`。任一检查失败立即停止；以 `gpu_validation.json`、`training_status.json` 和各 run 的 `metrics.jsonl` 判断实际进度。
+
+设置 `SWANLAB_MODE=cloud`。用户重新登录后，云端创建实验和稳定 ID 补传已实测通过；SDK 0.8.4 在同一进程连续初始化时需要刷新认证，训练与补传入口现于 cloud 模式显式使用已保存凭据重新认证，不写入或输出密钥。训练记录追加 Ego/真机分别的 `loss_ego` / `loss_real`；待补传记录也执行 flush/fsync。

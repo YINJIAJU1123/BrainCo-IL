@@ -110,6 +110,9 @@ def init_swanlab(config: _config.TrainConfig, *, resuming: bool, enabled: bool =
             raise ValueError(f"SWANLAB_API_KEY_FILE is empty: {api_key_file}")
         swanlab.login(api_key=api_key, relogin=True, save=False)
         init_kwargs["settings"] = swanlab.Settings(api_key=api_key, interactive=False)
+    elif init_kwargs["mode"] in ("cloud", "online"):
+        # Refresh the SDK client between sequential runs using the stored login.
+        swanlab.login(relogin=True, save=False)
     new_run_on_resume = os.environ.get("SWANLAB_NEW_RUN_ON_RESUME", "0") == "1"
     if resuming and not new_run_on_resume:
         run_id_path = ckpt_dir / "swanlab_id.txt"
@@ -211,7 +214,7 @@ def train_step(
         model: _model.BaseModel, rng: at.KeyArrayLike, observation: _model.Observation, actions: _model.Actions
     ):
         chunked_loss = model.compute_loss(rng, observation, actions, train=True)
-        return jnp.mean(chunked_loss)
+        return jnp.mean(chunked_loss), jnp.mean(chunked_loss, axis=-1)
 
     train_rng = jax.random.fold_in(rng, state.step)
     observation, actions = batch
@@ -219,7 +222,9 @@ def train_step(
     # 只有 TrainConfig 选中的参数参与自动求导.
     # 全参数训练、LoRA 和仅训练动作接口的差异在这里生效.
     diff_state = nnx.DiffState(0, config.trainable_filter)
-    loss, grads = nnx.value_and_grad(loss_fn, argnums=diff_state)(model, train_rng, observation, actions)
+    (loss, per_sample_loss), grads = nnx.value_and_grad(loss_fn, argnums=diff_state, has_aux=True)(
+        model, train_rng, observation, actions
+    )
 
     # Optax 将梯度转换为参数更新:梯度裁剪 -> AdamW -> 学习率缩放.
     params = state.params.filter(config.trainable_filter)
@@ -256,6 +261,21 @@ def train_step(
         "applied_update_norm": applied_update_norm,
         "param_norm": optax.global_norm(kernel_params),
     }
+    base_data = config.data.base_config
+    if (
+        base_data is not None
+        and base_data.multi_dataset_mode == "coverage"
+        and base_data.lerobot_datasets
+        and {(source.source_id, source.mask_wrist_images) for source in base_data.lerobot_datasets}
+        == {("ego", True), ("real", False)}
+    ):
+        # These mixed experiments use masked wrists for Ego and real wrists for robot data.
+        real = observation.image_masks["left_wrist_0_rgb"].astype(jnp.float32)
+        ego = 1.0 - real
+        info.update(
+            loss_ego=jnp.sum(per_sample_loss * ego) / jnp.maximum(jnp.sum(ego), 1),
+            loss_real=jnp.sum(per_sample_loss * real) / jnp.maximum(jnp.sum(real), 1),
+        )
     return new_state, info
 
 
@@ -391,6 +411,8 @@ def main(config: _config.TrainConfig):
                 if jax.process_index() == 0:
                     with (config.checkpoint_dir / "swanlab_pending.jsonl").open("a") as stream:
                         stream.write(json.dumps(dict(step=step, **reduced_info)) + "\n")
+                        stream.flush()
+                        os.fsync(stream.fileno())
             infos = []
             metric_clock = time.monotonic()
         if step + 1 < config.num_train_steps:

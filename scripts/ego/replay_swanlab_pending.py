@@ -22,6 +22,11 @@ def replay(run_dir: Path) -> int:
     if not pending.is_file():
         return 0
     rows = [json.loads(line) for line in pending.read_text().splitlines() if line.strip()]
+    if os.environ.get("SWANLAB_MODE", "local") in ("cloud", "online"):
+        if key_file := os.environ.get("SWANLAB_API_KEY_FILE"):
+            swanlab.login(api_key=Path(key_file).expanduser().read_text().strip(), relogin=True, save=False)
+        else:
+            swanlab.login(relogin=True, save=False)
     run = swanlab.init(project=config.project_name, experiment_name=config.exp_name,
                        name=config.exp_name, id=run_id, resume="must",
                        mode=os.environ.get("SWANLAB_MODE", "local"),
