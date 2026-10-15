@@ -18,6 +18,8 @@
 | P0 | 部署加载 | 短测封装 checkpoint 经 policy factory 完整加载，真实输入输出有限 16×56 absolute 动作，abs max 1.77356 | 离线检查通过，无机器人命令；实机闭环另行验收 |
 | P0 | 指标与上传 | 云端创建、上传及稳定 ID 补传通过；认证刷新修复通过；来源 loss 回归测试确认总 loss/参数更新不变 | 本地 metrics 与 pending 均 fsync；正式训练需持续查看曲线 |
 | P0 | 正式训练 | 1:1 已实际完成至少 11 个优化步，云端 run `6hayni72`；step 10 loss 0.22921，稳定段约 4.38 秒/步；3:1、5:2 串行等待 | [1:1 SwanLab](https://swanlab.cn/@laryybb626/imitation/runs/6hayni72)，完成后再做固定验证集比较 |
+| P0 | 数据供给与 GPU 空转 | 40 秒连续采样平均 GPU 利用率 21.6%，75.8% 点为 0%；主线程 83.1% 采样时间在等 DataLoader，worker 主要在视频读取解码 | 对比 worker2/4/8、缓存与重复视频 seek；验证后减少 masked Ego 腕图解码；补 loader_wait、compute_time 和平均 GPU 利用率 |
+| P0 | 是否扩轮与验证依据 | 当前真机覆盖 1 轮；近期真机训练 loss 明显下降，但未建立本轮独立真机验证集 | 保留 1 轮基线，建议后续评估 3 轮预算（20,720 / 41,440 / 36,260 步），有效改善时再考虑 5 轮；固定 Ego val、独立真机数据与实机效果决定；扩轮和学习率/采样恢复需统一规划 |
 | P1 | 入口、资产和架构清单 | 已列审阅清单；100h 与 checkpoint 基本元数据已核实 | 补 OSS 实际大小、引用、哈希与迁移恢复方案；目录清理先审阅 |
 | P1 | Ego 新直出字段顺序 | 10 月 5 日服务器审计发现 42D 手指名称与数值顺序错配，未修复；既有 100h 旧 exporter 抽查样本逐值正确 | 新直出入口按关节语义重排；逐字段与旧出口对照；排查该入口生成的派生数据，在确认前不用于训练 |
 | P1 | Ego 直出 NaN | 无效源帧与求解器有限保持帧的比较已修正 | A100 上重跑 `add_remove_lid/4`、`arrange_topple_dominoes/5` 和成功样本；保留限位/FK 检查并重报成功率与吞吐 |
@@ -46,3 +48,5 @@ P1/P2 保留工程与评价待办；新直出字段顺序问题须在使用该�
 本轮新增 norm 分批统计、按清单读取 Parquet、来源级时间戳容差及 YAML 更新纳入 ego-train 提交。提交前 11 个变更文件在 Mac/A100 逐文件 SHA 一致；原始备份保留，发布前另备份至 A100 `ego-posttrain-backups/20261015_publish`。发布后的准确提交号与同步核验记录见外部 REPORT。
 
 GPU 执行日志：A100 `/mnt/data_nas/ruibin/ego-posttrain-prep/20261015/pipeline_v3.log`；`gpu_validation.json` 为开训前验收快照，`training_status.json` 与正式 run 的 `metrics.jsonl` 表示后续运行进度。验收缓存仅复用本轮已校验的数据对象；原数据未改动。
+
+利用率解释补充（2026-10-15）：旧日志的 100% 采自计算完成后的单个时刻；连续采样显示输入供给存在长时间等待。59.9 GiB 显存主要来自 JAX 75% 预分配。诊断证据与建议保存在外部准备 REPORT 的“轮数建议与 GPU 空转诊断”节；当前实验配置继续按 1 轮、batch16、worker2 运行。
