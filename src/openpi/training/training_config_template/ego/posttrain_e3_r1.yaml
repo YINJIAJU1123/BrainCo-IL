@@ -86,6 +86,7 @@ train_config:
                 weight: 0.5
                 asset_id: null
                 source_id: real
+                tolerance_s: 0.0002
                 mask_wrist_images: false
                 prompt_override: put bread into left basket and put fruit into right
                   basket
@@ -195,7 +196,8 @@ train_config:
       comparison: equal_real_exposure
       planned_real_starts_before_review: 55243
       planned_rounded_real_starts: 55264
-      review_status: pending
+      review_status: approved_full_recording
+      shared_norm_sha256: 94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb
       camera_masks_for_deployment:
         head: true
         left_wrist: true

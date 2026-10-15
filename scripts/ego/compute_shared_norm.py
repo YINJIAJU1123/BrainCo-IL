@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 from pathlib import Path
@@ -29,18 +31,46 @@ def _sha(path: Path) -> str:
 def _consume(dataset: Path, selected: np.ndarray | None, state_stats, action_stats,
              *, horizon: int) -> tuple[int, list[dict]]:
     offset = 0
-    inputs = []
-    count = 0
+    planned = []
     for episode, path, expected_length in _episode_paths(dataset):
         if expected_length is None:
             raise ValueError(f"episode {episode} has no declared length")
         lo = np.searchsorted(selected, offset, side="left") if selected is not None else 0
         hi = np.searchsorted(selected, offset + expected_length, side="left") if selected is not None else expected_length
         if hi > lo:
-            state, actions = _read_vector_columns(path, ("observation.state", "action"))
+            starts = selected[lo:hi] - offset if selected is not None else np.arange(expected_length)
+            planned.append((episode, path, expected_length, starts))
+        offset += expected_length
+
+    inputs, state_buffer, action_buffer = [], [], []
+    count = buffered_starts = 0
+
+    def flush():
+        if state_buffer:
+            state_stats.update(np.concatenate(state_buffer, axis=0))
+            action_stats.update(np.concatenate(action_buffer, axis=0))
+            state_buffer.clear()
+            action_buffer.clear()
+
+    def read(item):
+        episode, path, expected_length, starts = item
+        state, actions = _read_vector_columns(path, ("observation.state", "action"))
+        return item, state, actions, _sha(path)
+
+    # NAS latency dominates small Parquet reads. Bound prefetch memory and retain
+    # episode order so histogram updates and provenance remain deterministic.
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        items = iter(planned)
+        pending = deque()
+        for _ in range(min(8, len(planned))):
+            pending.append(pool.submit(read, next(items)))
+        while pending:
+            (episode, path, expected_length, starts), state, actions, sha = pending.popleft().result()
+            item = next(items, None)
+            if item is not None:
+                pending.append(pool.submit(read, item))
             if len(state) != expected_length or len(actions) != expected_length:
                 raise ValueError(f"episode {episode} length mismatch")
-            starts = selected[lo:hi] - offset if selected is not None else np.arange(expected_length)
             state56 = _to_56d(state, key="observation.state")[starts]
             actions56 = _to_56d(actions, key="action")
             chunk_index = np.minimum(starts[:, None] + np.arange(horizon), expected_length - 1)
@@ -48,11 +78,15 @@ def _consume(dataset: Path, selected: np.ndarray | None, state_stats, action_sta
             chunks[..., :14] -= state56[:, None, :14]
             if not np.isfinite(state56).all() or not np.isfinite(chunks).all():
                 raise ValueError(f"nonfinite transformed vectors in episode {episode}")
-            state_stats.update(state56)
-            action_stats.update(chunks)
+            state_buffer.append(state56)
+            action_buffer.append(chunks)
+            buffered_starts += len(starts)
+            if buffered_starts >= 4096:
+                flush()
+                buffered_starts = 0
             count += len(starts)
-            inputs.append({"episode": episode, "parquet": str(path), "sha256": _sha(path), "starts": len(starts)})
-        offset += expected_length
+            inputs.append({"episode": episode, "parquet": str(path), "sha256": sha, "starts": len(starts)})
+    flush()
     if selected is not None and count != len(selected):
         raise ValueError(f"selected {len(selected)} starts but consumed {count}")
     return count, inputs
@@ -82,7 +116,7 @@ def compute(ego: Path, real: Path, output: Path, *, horizon: int = 16, seed: int
     np.save(output / "ego_start_indices.npy", ego_order, allow_pickle=False)
     normalize.save(output, result)
     manifest = {"method": "1:1 real+Ego starts, horizon16, 70D/56D to 56D, arm delta, hand absolute",
-                "seed": seed, "horizon": horizon, "real_starts": real_used, "ego_starts": ego_used,
+                "seed": seed, "horizon": horizon, "statistics_batch_starts": 4096, "real_starts": real_used, "ego_starts": ego_used,
                 "ego_selected_order_sha256": hashlib.sha256(ego_order.tobytes()).hexdigest(),
                 "ego_start_indices_file": "ego_start_indices.npy",
                 "ego_start_indices_file_sha256": _sha(output / "ego_start_indices.npy"),

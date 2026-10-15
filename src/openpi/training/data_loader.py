@@ -69,10 +69,21 @@ def _patch_torch_stack_for_datasets_column() -> None:
 _patch_torch_stack_for_datasets_column()
 
 
+class _ExplicitFilesLeRobotDataset(lerobot_dataset.LeRobotDataset):
+    """Use the LeRobot episode manifest instead of repeated NAS split discovery."""
+
+    def load_hf_dataset(self):
+        episodes = self.episodes if self.episodes is not None else range(self.meta.total_episodes)
+        files = [str(self.root / self.meta.get_data_file_path(index)) for index in episodes]
+        dataset = lerobot_dataset.load_dataset("parquet", data_files=files, split="train")
+        dataset.set_transform(lerobot_dataset.hf_transform_to_torch)
+        return dataset
+
+
 def _create_lerobot_dataset_compat(*args, **kwargs) -> lerobot_dataset.LeRobotDataset:
     """在安装兼容补丁后创建 LeRobotDataset."""
     kwargs.setdefault("video_backend", os.environ.get("OPENPI_LEROBOT_VIDEO_BACKEND", "pyav"))
-    return lerobot_dataset.LeRobotDataset(*args, **kwargs)
+    return _ExplicitFilesLeRobotDataset(*args, **kwargs)
 
 
 class Dataset(Protocol[T_co]):
@@ -292,8 +303,11 @@ def create_torch_dataset(
             dataset_meta = lerobot_dataset.LeRobotDatasetMetadata(ds_config.repo_id)
             # LeRobot 根据数据集 FPS,从当前 observation 时刻开始,
             # 取得 action_horizon 个连续动作目标.
+            if not 0 < ds_config.tolerance_s < 0.5 / dataset_meta.fps:
+                raise ValueError("dataset tolerance_s must be positive and less than half a frame")
             dataset = _create_lerobot_dataset_compat(
                 ds_config.repo_id,
+                tolerance_s=ds_config.tolerance_s,
                 delta_timestamps={
                     key: [t / dataset_meta.fps for t in range(action_horizon)]
                     for key in data_config.action_sequence_keys

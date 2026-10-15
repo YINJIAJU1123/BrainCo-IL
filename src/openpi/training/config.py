@@ -83,6 +83,8 @@ class LeRobotDataset:
     # None preserves the factory's historical camera convention.
     mask_wrist_images: bool | None = None
     prompt_override: str | None = None
+    # Seconds; override only for datasets with measured timestamp quantization.
+    tolerance_s: float = 1e-4
 
 
 @dataclasses.dataclass(frozen=True)

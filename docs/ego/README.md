@@ -1,6 +1,23 @@
 # EgoDex → Revotron → LeRobot 训练管线
 
-项目记录：A100 是工作环境，Mac 用于调试与 review。代码按可复核的小版本集中提交；本轮目录整理与训练准备暂不提交。
+项目记录：A100 是工作环境，Mac 用于调试与 review。Mac 两仓库的历史基线及 Post-train 准备代码已于 2026-09-29 提交并推送到 `ego-train`；2026-10-15 已保护原改动并同步 A100：IL `9a66657`、Dataset `c5bb19b`，post-train 脚本与三份配置已到位。
+
+## 文档导航与更新依据
+
+本文件是 Ego 项目的总入口，后文保存 100h 管线与历史运行记录。最新进展为 2026-10-15 的 A100 同步与 5090 独立副本 mask 修复，已追加到准备 REPORT 并回填 TODO；此前准备检查为 9 月 29 日，retarget 审计为 10 月 5 日。
+
+| 文件 | 用途与更新方式 |
+|---|---|
+| [POSTTRAIN_TODO.md](POSTTRAIN_TODO.md) | 持续维护的完成状态、剩余工作和验收条件；查“还有什么没做”从这里开始 |
+| [POSTTRAIN_ARCHITECTURE.md](POSTTRAIN_ARCHITECTURE.md) | 数据、代码、模型与存储之间的关系；设计或审计结论变化时更新 |
+| [POSTTRAIN_RUNBOOK.md](POSTTRAIN_RUNBOOK.md) | 审核、同步、norm、验收、启动及恢复的操作顺序 |
+| [准备 REPORT（含 10 月 15 日环境复核）](</Users/larrybb/Documents/ChatGPT/Ego data/reports/posttrain_prep_20260929/REPORT.md>) | 日期分节的检查证据：版本、数据、checkpoint、ROS 和兼容性；位于仓库外 |
+| [10 月 5 日 retarget 审计 REPORT](</Users/larrybb/Documents/ChatGPT/Ego data/reports/retarget_audit_20261005/REPORT.md>) | 服务器代码及真实样本审计，包括新直出入口的手指字段顺序问题；位于仓库外 |
+| `WORKTREE_REVIEW_20260923.md` | 9 月 23 日工作区审阅快照；在 Mac 被本地 exclude 忽略，未纳入 Git |
+
+REPORT 与仓库文档各自独立保存，没有自动同步程序。每次取得新结果后，在对应 REPORT 保存证据，同时更新 TODO 的状态及涉及的设计、操作说明。报告中的远端状态按其核查日期理解；后续远端操作前重新核对。
+
+Post-train 当前记录：三份 YAML、来源级 mask/prompt、覆盖采样和共享 norm 入口已在 Mac 准备，9 月 29 日 A100 隔离副本检查通过；正式 A100 仓库已同步，4 项检查通过。10 月 15 日确认原数据和两端 100h checkpoint 副本保留，5090 三相机/四组关节反馈可订阅；5090 独立副本 `/home/phoebe/Brainco/ego-posttrain/BrainCo-IL` 已修复旧 Ego 腕 mask（`cb25680`，18 项检查通过），共享部署入口保持原状态。用户已确认 task 并选择完整保留 55,243 帧；派生数据和共享 norm 已生成，三组真实混合 loader 的 CPU 验收通过。5090 原 100h 完整权重及 mask 不变性通过；三组新 norm 模型前向等待分配 A100 GPU，训练未启动。10 月 5 日发现的新直出 42D 字段顺序错配继续列入 TODO；既有 100h 使用旧 exporter。
 
 当前状态（2026-09-28）：100 小时批次的 20,000 步训练已完成，最终 checkpoint 为 `checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/19999/`；其中已生成 `policy_contract.json` 并封装部署元数据，训练配置内层内容保持不变。固定验证集评估和 5090 部署验收仍待完成。第 8 节训练命令保留为历史复现记录，不应在同名实验目录重跑。
 
@@ -79,7 +96,7 @@
 四段计时中有两段在 `handpose/pipeline/egodex_reviewed.py` 的
 `hand_joints` 一致性检查报 `NaN location mismatch`。检查曾把无效源帧的
 NaN 与求解器保持的有限上一帧关节逐项比较；现仅比较求解器接受的源帧。
-原失败片段的完整回归仍待 A100 可达。
+原失败片段的完整回归仍待执行；A100 已于 2026-09-29 通过 `brainco-a100-6007` 连通。2026-10-05 审计另发现新直出入口的手指字段顺序错配；此前求解数值一致与视频可读检查不足以证明出口字段语义正确，修复后须一起回归。
 这些样本只涵盖两种任务、数十秒视频，且输出写到本地 scratch；不能把 8.65 小时
 视作 NAS 正式批量直出的吞吐承诺。机器可复核的样本路径、哈希与结果见同目录
 `benchmark_report.json`；未改动正式 100h 数据和转换脚本。
@@ -106,7 +123,7 @@ NaN 与求解器保持的有限上一帧关节逐项比较；现仅比较求解�
 - 本批正式启动前已补齐黑手腕，检查帧同步、关节顺序、三路视频与真实 loader，并完成 50+1 步 profile/恢复；正式训练于 2026-09-26 跑满 20k 步。SwanLab 网页曲线已由完整的 `metrics.jsonl` 补齐，但本地 SwanLab 原记录只到约 730 步，自动日志链路仍需排查。
 - 相机 mask：LeRobot 固定保留三路相机字段；训练配置不再补黑图，设置 `mask_wrist_images=true` 使左右手腕 `image_mask=false`，Transformer 不使用手腕 image token，但 image encoder 仍会执行。
 - 配置管理：Ego 模板集中在 `BrainCo-IL/src/openpi/training/training_config_template/ego/`；新运行的日志与 YAML 快照放忽略的 `runs/ego/`。旧 `logs/egodex_*` 保留为历史记录，不再作为新实验的配置来源。
-- 部署封装：100 小时最终 checkpoint 已手动生成 `policy_contract.json`；新 checkpoint 的保存流程现在自动生成并校验契约，成功后写 `deploy_ready.json`。该自动流程已用序列化配置夹具检查；真实权重加载待 A100 可达。
+- 部署封装：100 小时最终 checkpoint 已手动生成 `policy_contract.json`；新 checkpoint 的保存流程现在自动生成并校验契约，成功后写 `deploy_ready.json`。序列化配置夹具检查及 A100 既有 checkpoint 契约再生成已通过；完整真实权重加载、保存流程和部署输出验收仍待执行。
 - 修改边界：封装只写入目标 checkpoint 目录，不改 5090 的部署代码，也不改 5090 上的 BrainCo-IL 仓库；当前上传的 29999 checkpoint 只新增 contract，并给同目录 `train_config.yaml` 增加外层 artifact 元数据，内部训练配置保留。
 - 固定验证集比较初始化/10k/20k；左右臂、左右手MAE及可视化回放。
 - 训练端与5090部署端的56维选择、三路相机字段和absolute输出契约统一后再验证实机。
