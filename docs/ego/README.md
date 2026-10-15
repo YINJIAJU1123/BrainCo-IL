@@ -15,6 +15,8 @@
 | [10 月 5 日 retarget 审计 REPORT](</Users/larrybb/Documents/ChatGPT/Ego data/reports/retarget_audit_20261005/REPORT.md>) | 服务器代码及真实样本审计，包括新直出入口的手指字段顺序问题；位于仓库外 |
 | `WORKTREE_REVIEW_20260923.md` | 9 月 23 日工作区审阅快照；在 Mac 被本地 exclude 忽略，未纳入 Git |
 
+后续性能工作已收录在 [视频读取与解码优化清单](POSTTRAIN_TODO.md#video-loading-optimization)，官方方案调研及实测依据保存在准备 REPORT。
+
 REPORT 与仓库文档各自独立保存，没有自动同步程序。每次取得新结果后，在对应 REPORT 保存证据，同时更新 TODO 的状态及涉及的设计、操作说明。报告中的远端状态按其核查日期理解；后续远端操作前重新核对。
 
 Post-train 当前记录：三份 YAML、来源级 mask/prompt、覆盖采样和共享 norm 入口已在 Mac 准备，9 月 29 日 A100 隔离副本检查通过；正式 A100 仓库已同步，4 项检查通过。10 月 15 日确认原数据和两端 100h checkpoint 副本保留，5090 三相机/四组关节反馈可订阅；5090 独立副本 `/home/phoebe/Brainco/ego-posttrain/BrainCo-IL` 已修复旧 Ego 腕 mask（`cb25680`，18 项检查通过），共享部署入口保持原状态。用户已确认 task 并选择完整保留 55,243 帧；派生数据和共享 norm 已生成，三组真实混合 loader 的 CPU 验收通过。5090 原 100h 完整权重及 mask 不变性通过；A100 5 卡的三组前向、独立 3 步短测、完整保存恢复、部署加载和 SwanLab 上传补传均通过。用户已授权串行训练，第一组 1:1 已正式运行，云端 run `6hayni72`，已核验 step 10 的有限 loss/梯度和实际参数更新；3:1、5:2 排队。最新状态见 TODO。10 月 5 日发现的新直出 42D 字段顺序错配继续列入 TODO；既有 100h 使用旧 exporter。

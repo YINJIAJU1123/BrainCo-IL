@@ -18,7 +18,7 @@
 | P0 | 部署加载 | 短测封装 checkpoint 经 policy factory 完整加载，真实输入输出有限 16×56 absolute 动作，abs max 1.77356 | 离线检查通过，无机器人命令；实机闭环另行验收 |
 | P0 | 指标与上传 | 云端创建、上传及稳定 ID 补传通过；认证刷新修复通过；来源 loss 回归测试确认总 loss/参数更新不变 | 本地 metrics 与 pending 均 fsync；正式训练需持续查看曲线 |
 | P0 | 正式训练 | 1:1 已实际完成至少 11 个优化步，云端 run `6hayni72`；step 10 loss 0.22921，稳定段约 4.38 秒/步；3:1、5:2 串行等待 | [1:1 SwanLab](https://swanlab.cn/@laryybb626/imitation/runs/6hayni72)，完成后再做固定验证集比较 |
-| P0 | 数据供给与 GPU 空转 | 40 秒连续采样平均 GPU 利用率 21.6%，75.8% 点为 0%；主线程 83.1% 采样时间在等 DataLoader，worker 主要在视频读取解码 | 对比 worker2/4/8、缓存与重复视频 seek；验证后减少 masked Ego 腕图解码；补 loader_wait、compute_time 和平均 GPU 利用率 |
+| P0 | 数据供给与 GPU 空转 | 40 秒连续采样平均 GPU 利用率 21.6%，75.8% 点为 0%；主线程 83.1% 采样时间在等 DataLoader，worker 主要在视频读取解码 | 已完成官方方案调研；按下方视频优化清单执行 worker/预取 → 有界 decoder 缓存/批量取帧 → 兼容的 TorchCodec/NVDEC → 存储分片；补 loader_wait、compute_time 和平均利用率 |
 | P0 | 是否扩轮与验证依据 | 当前真机覆盖 1 轮；近期真机训练 loss 明显下降，但未建立本轮独立真机验证集 | 保留 1 轮基线，建议后续评估 3 轮预算（20,720 / 41,440 / 36,260 步），有效改善时再考虑 5 轮；固定 Ego val、独立真机数据与实机效果决定；扩轮和学习率/采样恢复需统一规划 |
 | P1 | 入口、资产和架构清单 | 已列审阅清单；100h 与 checkpoint 基本元数据已核实 | 补 OSS 实际大小、引用、哈希与迁移恢复方案；目录清理先审阅 |
 | P1 | Ego 新直出字段顺序 | 10 月 5 日服务器审计发现 42D 手指名称与数值顺序错配，未修复；既有 100h 旧 exporter 抽查样本逐值正确 | 新直出入口按关节语义重排；逐字段与旧出口对照；排查该入口生成的派生数据，在确认前不用于训练 |
@@ -50,3 +50,20 @@ P1/P2 保留工程与评价待办；新直出字段顺序问题须在使用该�
 GPU 执行日志：A100 `/mnt/data_nas/ruibin/ego-posttrain-prep/20261015/pipeline_v3.log`；`gpu_validation.json` 为开训前验收快照，`training_status.json` 与正式 run 的 `metrics.jsonl` 表示后续运行进度。验收缓存仅复用本轮已校验的数据对象；原数据未改动。
 
 利用率解释补充（2026-10-15）：旧日志的 100% 采自计算完成后的单个时刻；连续采样显示输入供给存在长时间等待。59.9 GiB 显存主要来自 JAX 75% 预分配。诊断证据与建议保存在外部准备 REPORT 的“轮数建议与 GPU 空转诊断”节；当前实验配置继续按 1 轮、batch16、worker2 运行。
+
+<a id="video-loading-optimization"></a>
+
+## 视频读取与解码优化（后续执行，2026-10-15）
+
+本轮继续使用原训练配置；下列事项为后续基准和实现计划。调研、官方来源及适配限制见外部准备 REPORT 的“视频读取解码方案调研与优化清单”节。已有 persistent_workers 和 Arrow 读取缓存；新增工作重点为视频路径，而非重复启用已有缓存。
+
+| 顺序 | 待办 | 当前项目适配与验收 |
+|---|---|---|
+| 1 | 补输入链路计时；对比 worker2/4/8 与 prefetch2/4 | 当前 worker2、prefetch2、persistent_workers=true；固定 batch16、seed 和索引，测取 batch 等待 p50/p95、样本吞吐、平均 GPU 利用率及内存；同时限制 FFmpeg 总线程数 |
+| 2 | 跳过 masked Ego 双腕视频解码 | 原黑腕视频仍读取；用相同形状/类型的黑占位图，验证 Ego mask=false、真机三路 true、固定噪声模型输出不变 |
+| 3 | 每个 worker 复用有界 LRU decoder；按视频批量取帧 | 优先减少反复打开真机三路长视频；按同一视频组织内部 I/O 后恢复原采样顺序；保留帧号、PTS 和动作对齐，观测缓存命中率/文件句柄 |
+| 4 | 基准 CPU TorchCodec、精确帧索引与 NVDEC/DALI | 当前 torch2.7.1 / torchcodec0.11.1 不在官方兼容配对内；先在项目独立环境匹配版本。官方较新 API 只作候选；验证 FFmpeg、CUDA、编码格式及 Torch→JAX 数据交接；保持时间戳容差 |
+| 5 | 对比 NAS 与有限本地视频缓存 | 先测网络读取与 CPU 解码各占多少；缓存按视频 SHA、容量上限和命中率管理，预解码缓存单独核算空间；不以拷贝文件代替解码优化 |
+| 6 | 评估分片存储、预解码帧缓存或 LeRobot v3 派生副本 | WebDataset/更少的大文件可改善顺序 I/O；需保留覆盖配额、索引和断点游标。保留当前 v2.1 原数据，另建派生版本；仅打包 MP4 不会消除视频解码 |
+
+基准采用固定真实索引，先预热再记录至少 100 个 batch，区分启动与稳态；同一条件重复并报告波动。动作/state/prompt/norm/mask 与采样接续必须一致；跨解码后端另外比较帧号/PTS、像素和固定噪声模型输出。依次测量，收益超过波动且输入契约通过后再采用。当前 NumPy→JAX 输入边界需要专门设计设备预取，不能直接照搬 PyTorch CUDA 的 pin_memory/non_blocking 示例。
