@@ -1,8 +1,8 @@
 # Ego 100h 与 Post-train 架构及资产审阅（2026-09-29）
 
-最新执行进展（2026-10-15）：三组共享 norm 前向、3 步短测、130 个状态数组保存恢复一致性、norm 绑定及部署加载均通过。用户指定 A100 5 卡，1:1 正式运行（已核验 step 10），之后串行 3:1、5:2；SwanLab 云端上传与补传通过。运行状态见 [TODO](POSTTRAIN_TODO.md)。
+最新执行进展（2026-10-16）：开训前验收通过后，1:1 已完成 6,908 步，最终 `6907` 的 ready/norm 已核对；3:1 继续运行，5:2 等待。输入优化已通过独立CPU边界/覆盖采样、正式双轮长测及实际step37恢复；第三组使用专用profile在组间加载worker8/prefetch4和有界PyAV缓存，CPU吞吐提升4.84–5.85倍；运行状态见 [TODO](POSTTRAIN_TODO.md)。
 
-文档状态同步：2026-10-15。本文件维护设计与资产关系；运行证据在 [README 文档索引](README.md#文档导航与更新依据) 列出的 REPORT 中，剩余工作在 [TODO](POSTTRAIN_TODO.md)。数据/checkpoint 存在性已在 10 月 15 日复核；新直出问题依据 10 月 5 日审计。Post-train 代码已同步 A100，CPU 数据/统计/loader 准备完成。
+文档状态同步：2026-10-16。本文件维护设计与资产关系；运行证据在 [README 文档索引](README.md#文档导航与更新依据) 列出的 REPORT 中，剩余工作在 [TODO](POSTTRAIN_TODO.md)。数据/checkpoint 存在性已在 10 月 15 日复核；新直出问题依据 10 月 5 日审计。Post-train 代码已同步 A100，CPU 数据/统计/loader 准备完成。
 
 ## 路径与状态
 
@@ -59,3 +59,9 @@ flowchart TD
 ## 2026-10-15 CPU 准备完成
 
 真机完整 55,243 帧按用户决定保留，只修正任务文本，派生数据已发布 NAS；Ego/真机仍独立目录。共享 1:1 norm 与三组真实混合 loader CPU 检查已完成。5090 独立副本原 100h 完整加载和腕 mask 不变性通过；新 norm 三组模型前向及训练等待已分配的 A100 GPU。
+
+## 输入链路优化的边界与证据
+
+`src/openpi/training/video_loading.py` 是按实验启用的 CPU 读取路径：复制已验证的 LeRobot 来源对象，跳过明确 mask 的腕视频，复用每个 worker 内有容量上限的 PyAV reader，仅将选中帧转换为 RGB，并通过批量 fetch 在内部组织同视频请求、恢复原返回顺序。覆盖计划、动作 horizon/末尾 padding、prompt、归一化、模型 transforms 和 NumPy→JAX 边界仍复用 `data_loader.py`。稀疏时间戳保留独立 seek，避免顺序解码两个远距离请求间的整段视频。
+
+训练入口按 `EXP_NAME` 读取 `.input_pipeline/EXP_NAME.json`，核对配置、基准证据与代码 SHA 后才采用输入选项；run 与各 checkpoint 保存 `input_pipeline.json`。独立基准入口为 `scripts/ego/benchmark_video_loading.py`，A100 证据位于 `/mnt/data_nas/ruibin/ego-input-bench/20261016/`，Mac 对照证据归档在仓库外执行报告目录。CPU 吞吐、数据一致性与正式训练速度分别记录；不把 CPU 基准倍数写成已实测的 GPU 训练加速倍数。

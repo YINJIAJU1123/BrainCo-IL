@@ -56,6 +56,7 @@ import openpi.training.optimizer as _optimizer
 import openpi.training.sharding as sharding
 import openpi.training.utils as training_utils
 import openpi.training.weight_loaders as _weight_loaders
+import openpi.training.video_loading as _video_loading
 try:
     from scripts.export_policy_contract import package_checkpoint
 except ModuleNotFoundError:
@@ -281,6 +282,7 @@ def train_step(
 
 def main(config: _config.TrainConfig):
     """组装训练子系统并运行编译后的训练循环."""
+    config, input_profile = _video_loading.prepare_verified_profile(config)
     init_logging()
     logging.info(f"Running on: {platform.node()}")
 
@@ -313,15 +315,17 @@ def main(config: _config.TrainConfig):
     )
     if jax.process_index() == 0:
         _config_io.save_train_config(config, config.checkpoint_dir)
+        _video_loading.save_profile(input_profile, config.checkpoint_dir)
     init_swanlab(config, resuming=resuming, enabled=config.wandb_enabled)
 
     # DataLoader 在 CPU 上通过 LeRobot/PyTorch 解码并执行配置好的 transforms,
     # 随后按照 data_sharding 将 batch 创建为设备上的 JAX 数组.
-    data_loader = _data_loader.create_data_loader(
-        config,
-        sharding=data_sharding,
-        shuffle=True,
-    )
+    if input_profile is None:
+        data_loader = _data_loader.create_data_loader(config, sharding=data_sharding, shuffle=True)
+    else:
+        options = _video_loading.VideoLoadingOptions(**input_profile["options"])
+        logging.info("Using verified video loading profile: %s", input_profile["options"])
+        data_loader = _video_loading.create_data_loader(config, options, sharding=data_sharding, shuffle=True)
     # 恢复训练时先构建预期的抽象 TrainState 结构,
     # 再由 Orbax 将参数和优化器的具体数值恢复进去.
     train_state, train_state_sharding = init_train_state(config, init_rng, mesh, resume=resuming)
@@ -427,6 +431,7 @@ def main(config: _config.TrainConfig):
             checkpoint_manager.wait_until_finished()
             if jax.process_index() == 0:
                 _config_io.save_train_config(config, config.checkpoint_dir / str(step))
+                _video_loading.save_profile(input_profile, config.checkpoint_dir / str(step))
                 _finalize_deployment_checkpoint(config, step)
 
     logging.info("Waiting for checkpoint manager to finish")

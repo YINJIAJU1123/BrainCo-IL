@@ -41,6 +41,14 @@ A100 已同步准备版本：IL 准备提交 `25c5e5e`、Dataset `c5bb19b`。原
 
 三个模型使用同一个 Ego 固定验证子集比较左右臂、左右手 absolute MAE 和回放。真机训练样本指标仅是训练诊断。泛化比较依赖另录独立示教或同条件实机测试；每个模型使用自身绑定的 norm 反归一化，原 mid-train 对照继续使用原 norm。
 
+## 输入优化的独立验收与组间交接
+
+CPU 基准入口为 `scripts/ego/benchmark_video_loading.py`，优化实现为 `src/openpi/training/video_loading.py`。使用独立代码副本，设置 `CUDA_VISIBLE_DEVICES=''`、`JAX_PLATFORMS=cpu`，限制 CPU affinity 和进程优先级；复用已验证的只读数据对象缓存。固定原 YAML、batch16、seed42、两来源路径与共享 norm。先验证原始字段、episode 首尾与时间戳，再比较全部覆盖索引；统一预热后，对固定真实 batch 做两轮交错测速和逐字段 SHA 比较，单列启动与稳态时间。当前实现保持 PyAV，使用有界 worker 内 reader、仅对目标帧转 RGB，并可跳过来源配置明确 mask 的双腕视频。
+
+验收通过后，为指定实验写入 `CHECKPOINT_BASE/CONFIG_NAME/.input_pipeline/EXP_NAME.json`。该配置记录原训练配置 SHA、实测证据 SHA、输入链路代码 SHA，以及 worker、prefetch 和 decoder 选项。`scripts/train.py` 只在进入一组实验时读取该文件；无对应文件的实验继续使用原 DataLoader。配置或证据不匹配时拒绝启用。原始三份 YAML 保留实验计划，实际 worker 数写入 run 的 `train_config.yaml`，完整输入配置另存 `input_pipeline.json`，并随各 checkpoint 保存。
+
+已启动的串行调度器会在组间重新加载训练入口，因此可在当前组完成后启用下一组的已验收配置。提交前保留原代码与 Git ref，核对调度器确实存在这个组间加载点；不向正在执行的 Python 进程注入补丁。恢复同一实验时优先读取 run 内保存的输入配置，sampler 仍从 `TrainState.step` 重建，不使用预取进度。独立基准的样本吞吐不等于正式训练的总 step 吞吐；正式效果以该组开训后的运行指标为准。
+
 ## 2026-10-15 已生成统计
 
 共享 norm SHA-256：`94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb`。三组 CPU loader 检查已完成；不能用此替代 GPU 模型前向。当前使用用户指定的 5 卡执行第 3 节，再进行实际保存/恢复与日志验收。当前不创建新的 DSW 或连接正在配置的 4090。
@@ -50,3 +58,5 @@ A100 已同步准备版本：IL 准备提交 `25c5e5e`、Dataset `c5bb19b`。原
 用户已授权验收通过后启动三组实验并上传 SwanLab。按 1:1 → 3:1 → 5:2 在同一张 5 卡串行执行，各组仍从原 19999 权重初始化独立 optimizer；验收用的短测 checkpoint 不作为生产初始化。执行脚本与状态保存在 `/mnt/data_nas/ruibin/ego-posttrain-prep/20261015/`，当前入口 `validate_and_train.py`、日志 `pipeline_v3.log`。任一检查失败立即停止；以 `gpu_validation.json`、`training_status.json` 和各 run 的 `metrics.jsonl` 判断实际进度。
 
 设置 `SWANLAB_MODE=cloud`。用户重新登录后，云端创建实验和稳定 ID 补传已实测通过；SDK 0.8.4 在同一进程连续初始化时需要刷新认证，训练与补传入口现于 cloud 模式显式使用已保存凭据重新认证，不写入或输出密钥。训练记录追加 Ego/真机分别的 `loss_ego` / `loss_real`；待补传记录也执行 flush/fsync。
+
+2026-10-16 验收配置：worker8、prefetch4、每worker/来源reader缓存16、FFmpeg1线程、跳过明确mask的Ego黑腕、仅选中帧转RGB、批量fetch恢复采样顺序。正式ABBA双轮32预热+100计时通过，CPU吞吐4.84–5.85倍；完整采样和实际step37恢复一致。首次启动较慢，稳态使用persistent workers。第三组首次启动后，检查input_pipeline.json及实际train_config.yaml；持续GPU利用率和训练总step速度须另测。
