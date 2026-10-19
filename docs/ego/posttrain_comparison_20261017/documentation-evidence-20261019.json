@@ -1,0 +1,225 @@
+{
+  "checked_utc": "2026-10-19T05:52:57.215941+00:00",
+  "runs": {
+    "posttrain_e1_r1": {
+      "config_yaml": "schema_version: 1\ntrain_config:\n  __class__: openpi.training.config.TrainConfig\n  fields:\n    name: egodex_pi05_posttrain_20260929\n    project_name: imitation\n    exp_name: posttrain_e1_r1\n    model:\n      __class__: openpi.models.pi0_config.Pi0Config\n      fields:\n        action_dim: 56\n        action_horizon: 16\n        max_token_len: 256\n        dtype: bfloat16\n        paligemma_variant: gemma_2b_lora\n        action_expert_variant: gemma_300m_lora\n        pi05: true\n        discrete_state_input: true\n    weight_loader:\n      __class__: openpi.training.weight_loaders.CheckpointWeightLoader\n      fields:\n        params_path: /mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/19999/params\n    lr_schedule:\n      __class__: openpi.training.optimizer.CosineDecaySchedule\n      fields:\n        warmup_steps: 691\n        peak_lr: 5.0e-05\n        decay_steps: 6908\n        decay_lr: 5.0e-06\n    optimizer:\n      __class__: openpi.training.optimizer.AdamW\n      fields:\n        b1: 0.9\n        b2: 0.95\n        eps: 1.0e-08\n        weight_decay: 1.0e-10\n        clip_gradient_norm: 1.0\n    ema_decay: null\n    freeze_strategy: lora_and_action_interface\n    data:\n      __class__: openpi.training.config.LeRobotBrainCoDataConfig\n      fields:\n        repo_id: egodex_real_reference_1to1\n        assets:\n          __class__: openpi.training.config.AssetsConfig\n          fields:\n            assets_dir: /mnt/data_nas/ruibin/BrainCo-IL/assets/posttrain_shared_20260929\n            asset_id: egodex_real_reference_1to1\n        base_config:\n          __class__: openpi.training.config.DataConfig\n          fields:\n            repo_id: null\n            asset_id: null\n            norm_stats: null\n            repack_transforms:\n              __class__: openpi.transforms.Group\n              fields:\n                inputs: []\n                outputs: []\n            data_transforms:\n              __class__: openpi.transforms.Group\n              fields:\n                inputs: []\n                outputs: []\n            model_transforms:\n              __class__: openpi.transforms.Group\n              fields:\n                inputs: []\n                outputs: []\n            use_quantile_norm: true\n            action_sequence_keys:\n            - action\n            prompt_from_task: true\n            lerobot_datasets:\n            - __class__: openpi.training.config.LeRobotDataset\n              fields:\n                repo_id: /mnt/data_nas/ruibin/dataset/egodex_100h_offset0_lerobot21/train\n                weight: 0.5\n                asset_id: null\n                source_id: ego\n                mask_wrist_images: true\n                prompt_override: null\n                tolerance_s: 0.0001\n            - __class__: openpi.training.config.LeRobotDataset\n              fields:\n                repo_id: /mnt/data_nas/ruibin/dataset/revotron_item_sorting_reviewed_v1\n                weight: 0.5\n                asset_id: null\n                source_id: real\n                mask_wrist_images: false\n                prompt_override: put bread into left basket and put fruit into right\n                  basket\n                tolerance_s: 0.0002\n            multi_dataset_mode: coverage\n            coverage_source: real\n            coverage_ego_ratio: 1\n            coverage_real_ratio: 1\n            coverage_round_to: 32\n            coverage_rounds: 1\n            coverage_seed: 42\n        extra_delta_transform: true\n        policy_io:\n          __class__: openpi.policies.brainco_policy.BrainCoPolicyIOConfig\n          fields:\n            state_groups:\n            - left_arm\n            - right_arm\n            - left_hand\n            - right_hand\n            action_groups:\n            - left_arm\n            - right_arm\n            - left_hand\n            - right_hand\n            delta_action_groups:\n            - left_arm\n            - right_arm\n            dataset_state_dim: 56\n            dataset_state_indices:\n            - 0\n            - 1\n            - 2\n            - 3\n            - 4\n            - 5\n            - 6\n            - 7\n            - 8\n            - 9\n            - 10\n            - 11\n            - 12\n            - 13\n            - 14\n            - 15\n            - 16\n            - 17\n            - 18\n            - 19\n            - 20\n            - 21\n            - 22\n            - 23\n            - 24\n            - 25\n            - 26\n            - 27\n            - 28\n            - 29\n            - 30\n            - 31\n            - 32\n            - 33\n            - 34\n            - 35\n            - 36\n            - 37\n            - 38\n            - 39\n            - 40\n            - 41\n            - 42\n            - 43\n            - 44\n            - 45\n            - 46\n            - 47\n            - 48\n            - 49\n            - 50\n            - 51\n            - 52\n            - 53\n            - 54\n            - 55\n        arm_dof: 7\n        hand_dof: 21\n        head_camera_key: observation.images.cam_head\n        egodex_head_only: false\n        mask_wrist_images: false\n        revo3_eef_joint_hand_to_joint_hand: true\n        action_sequence_keys:\n        - action\n    assets_base_dir: /mnt/data_nas/ruibin/BrainCo-IL/assets\n    checkpoint_base_dir: /mnt/data_nas/ruibin/BrainCo-IL/checkpoints\n    seed: 42\n    batch_size: 16\n    num_workers: 2\n    num_train_steps: 6908\n    log_interval: 10\n    save_interval: 1000\n    keep_period: 2000\n    save_final_checkpoint: true\n    overwrite: false\n    resume: false\n    wandb_enabled: true\n    policy_metadata:\n      comparison: equal_real_exposure\n      planned_real_starts_before_review: 55243\n      planned_rounded_real_starts: 55264\n      review_status: approved_full_recording\n      shared_norm_sha256: 94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb\n      camera_masks_for_deployment:\n        head: true\n        left_wrist: true\n        right_wrist: true\n    deployment_robot_interface: revotron_mit_revo3_mit_3cam\n    policy_rate_hz: 30.0\n    fsdp_devices: 1\n",
+      "config_sha256": "0d592a01417550ac04a133501fd0dc4023d5901a23d2e2d576b7c44c8ba28d10",
+      "swanlab_id": "6hayni72",
+      "metric_count": 691,
+      "first": {
+        "step": 0,
+        "unix_time": 1792052977.1267378,
+        "applied_update_norm": 0.000509789795614779,
+        "grad_norm": 1.8901658058166504,
+        "loss": 0.2408543825149536,
+        "loss_ego": 0.19821757078170776,
+        "loss_real": 0.28349119424819946,
+        "param_norm": 1804.4024658203125,
+        "update_norm": 0.0005092864157631993,
+        "learning_rate": 7.225389708764851e-08,
+        "seconds_per_step": 46.16393841430545,
+        "samples_per_second": 0.3465908791491209,
+        "ego_samples": 8,
+        "real_samples": 8,
+        "real_coverage": 0.0001448147276578028,
+        "gpu_memory_mib": 61343.0,
+        "gpu_utilization_percent": 25.0
+      },
+      "last": {
+        "step": 6900,
+        "unix_time": 1792092956.531769,
+        "applied_update_norm": 0.007730372250080109,
+        "grad_norm": 0.4120810925960541,
+        "loss": 0.06865521520376205,
+        "loss_ego": 0.10149507969617844,
+        "loss_real": 0.035815369337797165,
+        "param_norm": 1804.5780029296875,
+        "update_norm": 0.007730372250080109,
+        "learning_rate": 5.000183591619134e-06,
+        "seconds_per_step": 6.445286123780534,
+        "samples_per_second": 2.4824344013163953,
+        "ego_samples": 55208,
+        "real_samples": 55208,
+        "real_coverage": 0.9993664355664971,
+        "gpu_memory_mib": 61343.0,
+        "gpu_utilization_percent": 100.0
+      },
+      "first100_mean": {
+        "loss": 0.11183834351599216,
+        "loss_real": 0.11155472841113806,
+        "loss_ego": 0.11212195716798305,
+        "seconds_per_step": 6.269253978796769
+      },
+      "last100_mean": {
+        "loss": 0.06327350240200758,
+        "loss_real": 0.03498714974150061,
+        "loss_ego": 0.09155985459685326,
+        "seconds_per_step": 5.6238973772083405
+      },
+      "pending_exists": false,
+      "runtime_code": {
+        "git_commit": "56152137f8586621b4ff87ff9f5059f6ce19cc2e",
+        "gpu": 5,
+        "source_sha256": {
+          "/mnt/data_nas/ruibin/BrainCo-IL/scripts/train.py": "607754a8b817c41de06f4b926ac6d12cdc3585a69267309c338ba6907cf9a0f7",
+          "/mnt/data_nas/ruibin/BrainCo-IL/scripts/ego/replay_swanlab_pending.py": "3e8906439b06bb25e767597f05fb66b677ec640abcca86661e1772bd98f1c53c",
+          "/mnt/data_nas/ruibin/ego-posttrain-prep/20261015/validate_and_train.py": "fc600fd7242f2adaa87e103df2b4f5347c598c3943daac53431009e1411ec161",
+          "/mnt/data_nas/ruibin/ego-posttrain-prep/20261015/run_pipeline.sh": "16e7bd974626c0c208306073929a45162ee5fe5898e143c9e2605df00325c7ff",
+          "/mnt/data_nas/ruibin/BrainCo-IL/src/openpi/training/training_config_template/ego/posttrain_e1_r1.yaml": "837048afc16be64ea48251c5544cf5dd2e3265f519cbf4d46dc218b7585fedec",
+          "/mnt/data_nas/ruibin/BrainCo-IL/src/openpi/training/training_config_template/ego/posttrain_e3_r1.yaml": "ab142110f89357176e4cc7474c8b088b1db6f2e3693d257fd11532ae658b1ebe",
+          "/mnt/data_nas/ruibin/BrainCo-IL/src/openpi/training/training_config_template/ego/posttrain_e5_r2.yaml": "21da0d29c657038b9270f58d927c41a6a9e88461b9181c72b8e064982faad6f7"
+        },
+        "original_checkpoint": "checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/19999",
+        "optimizer_initialization": "fresh per experiment",
+        "swanlab_url": "https://swanlab.cn/@laryybb626/imitation/runs/6hayni72",
+        "note": "Runtime source hashes matched this commit; it was published while the first run initialized."
+      }
+    },
+    "posttrain_e3_r1": {
+      "config_yaml": "schema_version: 1\ntrain_config:\n  __class__: openpi.training.config.TrainConfig\n  fields:\n    name: egodex_pi05_posttrain_20260929\n    project_name: imitation\n    exp_name: posttrain_e3_r1\n    model:\n      __class__: openpi.models.pi0_config.Pi0Config\n      fields:\n        action_dim: 56\n        action_horizon: 16\n        max_token_len: 256\n        dtype: bfloat16\n        paligemma_variant: gemma_2b_lora\n        action_expert_variant: gemma_300m_lora\n        pi05: true\n        discrete_state_input: true\n    weight_loader:\n      __class__: openpi.training.weight_loaders.CheckpointWeightLoader\n      fields:\n        params_path: /mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/19999/params\n    lr_schedule:\n      __class__: openpi.training.optimizer.CosineDecaySchedule\n      fields:\n        warmup_steps: 1382\n        peak_lr: 5.0e-05\n        decay_steps: 13816\n        decay_lr: 5.0e-06\n    optimizer:\n      __class__: openpi.training.optimizer.AdamW\n      fields:\n        b1: 0.9\n        b2: 0.95\n        eps: 1.0e-08\n        weight_decay: 1.0e-10\n        clip_gradient_norm: 1.0\n    ema_decay: null\n    freeze_strategy: lora_and_action_interface\n    data:\n      __class__: openpi.training.config.LeRobotBrainCoDataConfig\n      fields:\n        repo_id: egodex_real_reference_1to1\n        assets:\n          __class__: openpi.training.config.AssetsConfig\n          fields:\n            assets_dir: /mnt/data_nas/ruibin/BrainCo-IL/assets/posttrain_shared_20260929\n            asset_id: egodex_real_reference_1to1\n        base_config:\n          __class__: openpi.training.config.DataConfig\n          fields:\n            repo_id: null\n            asset_id: null\n            norm_stats: null\n            repack_transforms:\n              __class__: openpi.transforms.Group\n              fields:\n                inputs: []\n                outputs: []\n            data_transforms:\n              __class__: openpi.transforms.Group\n              fields:\n                inputs: []\n                outputs: []\n            model_transforms:\n              __class__: openpi.transforms.Group\n              fields:\n                inputs: []\n                outputs: []\n            use_quantile_norm: true\n            action_sequence_keys:\n            - action\n            prompt_from_task: true\n            lerobot_datasets:\n            - __class__: openpi.training.config.LeRobotDataset\n              fields:\n                repo_id: /mnt/data_nas/ruibin/dataset/egodex_100h_offset0_lerobot21/train\n                weight: 0.5\n                asset_id: null\n                source_id: ego\n                mask_wrist_images: true\n                prompt_override: null\n                tolerance_s: 0.0001\n            - __class__: openpi.training.config.LeRobotDataset\n              fields:\n                repo_id: /mnt/data_nas/ruibin/dataset/revotron_item_sorting_reviewed_v1\n                weight: 0.5\n                asset_id: null\n                source_id: real\n                mask_wrist_images: false\n                prompt_override: put bread into left basket and put fruit into right\n                  basket\n                tolerance_s: 0.0002\n            multi_dataset_mode: coverage\n            coverage_source: real\n            coverage_ego_ratio: 3\n            coverage_real_ratio: 1\n            coverage_round_to: 32\n            coverage_rounds: 1\n            coverage_seed: 42\n        extra_delta_transform: true\n        policy_io:\n          __class__: openpi.policies.brainco_policy.BrainCoPolicyIOConfig\n          fields:\n            state_groups:\n            - left_arm\n            - right_arm\n            - left_hand\n            - right_hand\n            action_groups:\n            - left_arm\n            - right_arm\n            - left_hand\n            - right_hand\n            delta_action_groups:\n            - left_arm\n            - right_arm\n            dataset_state_dim: 56\n            dataset_state_indices:\n            - 0\n            - 1\n            - 2\n            - 3\n            - 4\n            - 5\n            - 6\n            - 7\n            - 8\n            - 9\n            - 10\n            - 11\n            - 12\n            - 13\n            - 14\n            - 15\n            - 16\n            - 17\n            - 18\n            - 19\n            - 20\n            - 21\n            - 22\n            - 23\n            - 24\n            - 25\n            - 26\n            - 27\n            - 28\n            - 29\n            - 30\n            - 31\n            - 32\n            - 33\n            - 34\n            - 35\n            - 36\n            - 37\n            - 38\n            - 39\n            - 40\n            - 41\n            - 42\n            - 43\n            - 44\n            - 45\n            - 46\n            - 47\n            - 48\n            - 49\n            - 50\n            - 51\n            - 52\n            - 53\n            - 54\n            - 55\n        arm_dof: 7\n        hand_dof: 21\n        head_camera_key: observation.images.cam_head\n        egodex_head_only: false\n        mask_wrist_images: false\n        revo3_eef_joint_hand_to_joint_hand: true\n        action_sequence_keys:\n        - action\n    assets_base_dir: /mnt/data_nas/ruibin/BrainCo-IL/assets\n    checkpoint_base_dir: /mnt/data_nas/ruibin/BrainCo-IL/checkpoints\n    seed: 42\n    batch_size: 16\n    num_workers: 2\n    num_train_steps: 13816\n    log_interval: 10\n    save_interval: 1000\n    keep_period: 2000\n    save_final_checkpoint: true\n    overwrite: false\n    resume: false\n    wandb_enabled: true\n    policy_metadata:\n      comparison: equal_real_exposure\n      planned_real_starts_before_review: 55243\n      planned_rounded_real_starts: 55264\n      review_status: approved_full_recording\n      shared_norm_sha256: 94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb\n      camera_masks_for_deployment:\n        head: true\n        left_wrist: true\n        right_wrist: true\n    deployment_robot_interface: revotron_mit_revo3_mit_3cam\n    policy_rate_hz: 30.0\n    fsdp_devices: 1\n",
+      "config_sha256": "7f7b7c301676bc8ad0cf7e992234c2d3a7c353158ecf370a016c3839648d6592",
+      "swanlab_id": "uy1203p2",
+      "metric_count": 1382,
+      "first": {
+        "step": 0,
+        "unix_time": 1792093177.2204368,
+        "applied_update_norm": 0.00025482146884314716,
+        "grad_norm": 1.493327021598816,
+        "loss": 0.19466611742973328,
+        "loss_ego": 0.16308504343032837,
+        "loss_real": 0.289409339427948,
+        "param_norm": 1804.4024658203125,
+        "update_norm": 0.0002549815399106592,
+        "learning_rate": 3.615059540607035e-08,
+        "seconds_per_step": 46.168213767930865,
+        "samples_per_second": 0.3465587835047203,
+        "ego_samples": 12,
+        "real_samples": 4,
+        "real_coverage": 7.24073638289014e-05,
+        "gpu_memory_mib": 61343.0,
+        "gpu_utilization_percent": 0.0
+      },
+      "last": {
+        "step": 13810,
+        "unix_time": 1792213295.6157415,
+        "applied_update_norm": 0.008131912909448147,
+        "grad_norm": 0.32926756143569946,
+        "loss": 0.06839589029550552,
+        "loss_ego": 0.07825585454702377,
+        "loss_real": 0.03881599381566048,
+        "param_norm": 1804.757080078125,
+        "update_norm": 0.008131912909448147,
+        "learning_rate": 5.0000253395410255e-06,
+        "seconds_per_step": 7.979766616225243,
+        "samples_per_second": 2.005071171814378,
+        "ego_samples": 165732,
+        "real_samples": 55244,
+        "real_coverage": 1.0,
+        "gpu_memory_mib": 61343.0,
+        "gpu_utilization_percent": 100.0
+      },
+      "first100_mean": {
+        "loss": 0.11438211865723133,
+        "loss_real": 0.13782571017742157,
+        "loss_ego": 0.10656758815050126,
+        "seconds_per_step": 8.309491854768712
+      },
+      "last100_mean": {
+        "loss": 0.07201902654021979,
+        "loss_real": 0.034803116861730814,
+        "loss_ego": 0.08442433133721351,
+        "seconds_per_step": 9.345510054384825
+      },
+      "pending_exists": false
+    },
+    "posttrain_e5_r2": {
+      "config_yaml": "schema_version: 1\ntrain_config:\n  __class__: openpi.training.config.TrainConfig\n  fields:\n    name: egodex_pi05_posttrain_20260929\n    project_name: imitation\n    exp_name: posttrain_e5_r2\n    model:\n      __class__: openpi.models.pi0_config.Pi0Config\n      fields:\n        action_dim: 56\n        action_horizon: 16\n        max_token_len: 256\n        dtype: bfloat16\n        paligemma_variant: gemma_2b_lora\n        action_expert_variant: gemma_300m_lora\n        pi05: true\n        discrete_state_input: true\n    weight_loader:\n      __class__: openpi.training.weight_loaders.CheckpointWeightLoader\n      fields:\n        params_path: /mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/19999/params\n    lr_schedule:\n      __class__: openpi.training.optimizer.CosineDecaySchedule\n      fields:\n        warmup_steps: 1209\n        peak_lr: 5.0e-05\n        decay_steps: 12089\n        decay_lr: 5.0e-06\n    optimizer:\n      __class__: openpi.training.optimizer.AdamW\n      fields:\n        b1: 0.9\n        b2: 0.95\n        eps: 1.0e-08\n        weight_decay: 1.0e-10\n        clip_gradient_norm: 1.0\n    ema_decay: null\n    freeze_strategy: lora_and_action_interface\n    data:\n      __class__: openpi.training.config.LeRobotBrainCoDataConfig\n      fields:\n        repo_id: egodex_real_reference_1to1\n        assets:\n          __class__: openpi.training.config.AssetsConfig\n          fields:\n            assets_dir: /mnt/data_nas/ruibin/BrainCo-IL/assets/posttrain_shared_20260929\n            asset_id: egodex_real_reference_1to1\n        base_config:\n          __class__: openpi.training.config.DataConfig\n          fields:\n            repo_id: null\n            asset_id: null\n            norm_stats: null\n            repack_transforms:\n              __class__: openpi.transforms.Group\n              fields:\n                inputs: []\n                outputs: []\n            data_transforms:\n              __class__: openpi.transforms.Group\n              fields:\n                inputs: []\n                outputs: []\n            model_transforms:\n              __class__: openpi.transforms.Group\n              fields:\n                inputs: []\n                outputs: []\n            use_quantile_norm: true\n            action_sequence_keys:\n            - action\n            prompt_from_task: true\n            lerobot_datasets:\n            - __class__: openpi.training.config.LeRobotDataset\n              fields:\n                repo_id: /mnt/data_nas/ruibin/dataset/egodex_100h_offset0_lerobot21/train\n                weight: 0.5\n                asset_id: null\n                source_id: ego\n                mask_wrist_images: true\n                prompt_override: null\n                tolerance_s: 0.0001\n            - __class__: openpi.training.config.LeRobotDataset\n              fields:\n                repo_id: /mnt/data_nas/ruibin/dataset/revotron_item_sorting_reviewed_v1\n                weight: 0.5\n                asset_id: null\n                source_id: real\n                mask_wrist_images: false\n                prompt_override: put bread into left basket and put fruit into right\n                  basket\n                tolerance_s: 0.0002\n            multi_dataset_mode: coverage\n            coverage_source: real\n            coverage_ego_ratio: 5\n            coverage_real_ratio: 2\n            coverage_round_to: 32\n            coverage_rounds: 1\n            coverage_seed: 42\n        extra_delta_transform: true\n        policy_io:\n          __class__: openpi.policies.brainco_policy.BrainCoPolicyIOConfig\n          fields:\n            state_groups:\n            - left_arm\n            - right_arm\n            - left_hand\n            - right_hand\n            action_groups:\n            - left_arm\n            - right_arm\n            - left_hand\n            - right_hand\n            delta_action_groups:\n            - left_arm\n            - right_arm\n            dataset_state_dim: 56\n            dataset_state_indices:\n            - 0\n            - 1\n            - 2\n            - 3\n            - 4\n            - 5\n            - 6\n            - 7\n            - 8\n            - 9\n            - 10\n            - 11\n            - 12\n            - 13\n            - 14\n            - 15\n            - 16\n            - 17\n            - 18\n            - 19\n            - 20\n            - 21\n            - 22\n            - 23\n            - 24\n            - 25\n            - 26\n            - 27\n            - 28\n            - 29\n            - 30\n            - 31\n            - 32\n            - 33\n            - 34\n            - 35\n            - 36\n            - 37\n            - 38\n            - 39\n            - 40\n            - 41\n            - 42\n            - 43\n            - 44\n            - 45\n            - 46\n            - 47\n            - 48\n            - 49\n            - 50\n            - 51\n            - 52\n            - 53\n            - 54\n            - 55\n        arm_dof: 7\n        hand_dof: 21\n        head_camera_key: observation.images.cam_head\n        egodex_head_only: false\n        mask_wrist_images: false\n        revo3_eef_joint_hand_to_joint_hand: true\n        action_sequence_keys:\n        - action\n    assets_base_dir: /mnt/data_nas/ruibin/BrainCo-IL/assets\n    checkpoint_base_dir: /mnt/data_nas/ruibin/BrainCo-IL/checkpoints\n    seed: 42\n    batch_size: 16\n    num_workers: 8\n    num_train_steps: 12089\n    log_interval: 10\n    save_interval: 1000\n    keep_period: 2000\n    save_final_checkpoint: true\n    overwrite: false\n    resume: false\n    wandb_enabled: true\n    policy_metadata:\n      comparison: equal_real_exposure\n      planned_real_starts_before_review: 55243\n      planned_rounded_real_starts: 55264\n      review_status: approved_full_recording\n      shared_norm_sha256: 94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb\n      camera_masks_for_deployment:\n        head: true\n        left_wrist: true\n        right_wrist: true\n    deployment_robot_interface: revotron_mit_revo3_mit_3cam\n    policy_rate_hz: 30.0\n    fsdp_devices: 1\n",
+      "config_sha256": "323c51d44f6a597c66bd09dac544764273239a4332bd3b521c3209dd34928314",
+      "swanlab_id": "vrd7jl5u",
+      "metric_count": 1209,
+      "first": {
+        "step": 0,
+        "unix_time": 1792213747.7794862,
+        "applied_update_norm": 0.00029077022918500006,
+        "grad_norm": 1.493327021598816,
+        "loss": 0.19466611742973328,
+        "loss_ego": 0.16308504343032837,
+        "loss_real": 0.289409339427948,
+        "param_norm": 1804.4024658203125,
+        "update_norm": 0.00029144412837922573,
+        "learning_rate": 4.1320163290947676e-08,
+        "seconds_per_step": 54.72551880404353,
+        "samples_per_second": 0.2923681739279884,
+        "ego_samples": 12,
+        "real_samples": 4,
+        "real_coverage": 7.24073638289014e-05,
+        "gpu_memory_mib": 61343.0,
+        "gpu_utilization_percent": 0.0
+      },
+      "last": {
+        "step": 12080,
+        "unix_time": 1792232988.6177666,
+        "applied_update_norm": 0.007811450399458408,
+        "grad_norm": 0.3488752245903015,
+        "loss": 0.0675382986664772,
+        "loss_ego": 0.08441375195980072,
+        "loss_real": 0.02695852890610695,
+        "param_norm": 1804.713134765625,
+        "update_norm": 0.007811449468135834,
+        "learning_rate": 5.000076271244325e-06,
+        "seconds_per_step": 1.335075598396361,
+        "samples_per_second": 11.984340077234995,
+        "ego_samples": 138069,
+        "real_samples": 55227,
+        "real_coverage": 0.9997103705446844,
+        "gpu_memory_mib": 61343.0,
+        "gpu_utilization_percent": 100.0
+      },
+      "first100_mean": {
+        "loss": 0.1142559140175581,
+        "loss_real": 0.13191628880798817,
+        "loss_ego": 0.10727323979139328,
+        "seconds_per_step": 2.065890570185147
+      },
+      "last100_mean": {
+        "loss": 0.07020764712244272,
+        "loss_real": 0.03393589211627841,
+        "loss_ego": 0.08471025846898556,
+        "seconds_per_step": 1.5773106293645687
+      },
+      "pending_exists": false,
+      "input_pipeline": {
+        "experiment": "posttrain_e5_r2",
+        "original_workers": 2,
+        "config_sha256": "4e7844567a700efcd72a7e6dfc9a04ececc3ed085bda43bc287b309fc3496993",
+        "options": {
+          "workers": 8,
+          "prefetch_factor": 4,
+          "skip_masked_wrists": true,
+          "decoder_cache_size": 16,
+          "ffmpeg_threads": 1,
+          "batch_video_queries": true,
+          "optimized_decode": true
+        },
+        "evidence_path": "/mnt/data_nas/ruibin/ego-input-bench/20261016/results_v3/benchmark_summary.json",
+        "evidence_sha256": "faa9a873d210d8b068512f860c91bdec7378c273234d5306cb5f87e23cea03ad",
+        "source_sha256": {
+          "src/openpi/training/video_loading.py": "74bdada28bfcdc6d28d3dea64ec50334893800b3231261ffd5c5d2f5f5696e64",
+          "scripts/train.py": "9023700c229a485a561b6e7ef6ff1fab377763cc021c2367d4c2743e211a5058",
+          "scripts/ego/benchmark_video_loading.py": "f96de76ec894128c3ec707a752abb6f2ac0e22de0657aa089dce928a8e23cf55",
+          "src/openpi/training/data_loader.py": "d23e889db070c3b8b257d98cb6ff6d147a31d3e13ca08126efa0d06cab498d53",
+          "src/openpi/training/coverage_sampler.py": "3770142d9195303f298cefe786bd47c6bf614a570ca41e91bc9c42529d5d135f"
+        }
+      }
+    }
+  },
+  "source_sha256": {
+    "scripts/train.py": "9023700c229a485a561b6e7ef6ff1fab377763cc021c2367d4c2743e211a5058",
+    "src/openpi/models/pi0.py": "379a7114f2d1ec001124eeabd2892f1425d9b2c3554fcc896581241c9a269ca0",
+    "src/openpi/models/gemma.py": "f5de30d440c27de7344d3de30d174cd25474ae9381afbf0190ceb9238c0f5c51",
+    "src/openpi/training/config.py": "e6a916038c23ccc08cdfeac5da592f20152d87611d735301a4682a1c844ab404",
+    "src/openpi/training/coverage_sampler.py": "3770142d9195303f298cefe786bd47c6bf614a570ca41e91bc9c42529d5d135f",
+    "src/openpi/transforms.py": "a5cadf11497da5b622edbff3ebb47c18f0ac1a5b2b6e0592045497d537f5e071",
+    "src/openpi/policies/policy_config.py": "e6ee0d6a6651730d7b9cb9cb1ecb5514f010158f782e80d2d14a895c7d41d1ca"
+  }
+}

@@ -1,0 +1,267 @@
+{
+  "checked_utc": "2026-10-19T02:11:28.687329+00:00",
+  "wan": {
+    "run": "/mnt/data_nas/ruibin/wrist_view_experiments/runs/20261016-wan-fullvideo-gpu2",
+    "status": "completed",
+    "updates": 5000,
+    "global_updates": 10000,
+    "finished": {
+      "status": "completed",
+      "updates": 5000,
+      "time_unix": 1792291117.6917164
+    },
+    "finished_mtime_utc": "2026-10-18T02:38:37.696115+00:00",
+    "train_mean_psnr": 26.11882710576027,
+    "baseline_train_mean_psnr": 12.140497449727738,
+    "heldout_psnr": 10.781036723533493,
+    "baseline_heldout_psnr": 10.363619112695536,
+    "stage5000": {
+      "episode-000": {
+        "split": "train",
+        "frames": 319,
+        "padded_frames": 321,
+        "psnr": 24.249802471617613,
+        "mae": 8.743886711947058,
+        "seconds": 113.6818155781366,
+        "peak_gib": 25.956058025360107,
+        "directory": "/mnt/data_nas/ruibin/wrist_view_experiments/runs/20261016-wan-fullvideo-gpu2/eval-005000-episode-000"
+      },
+      "episode-001": {
+        "split": "train",
+        "frames": 361,
+        "padded_frames": 361,
+        "psnr": 25.653936479900658,
+        "mae": 9.134558085180055,
+        "seconds": 132.16734161879867,
+        "peak_gib": 26.254546642303467,
+        "directory": "/mnt/data_nas/ruibin/wrist_view_experiments/runs/20261016-wan-fullvideo-gpu2/eval-005000-episode-001"
+      },
+      "episode-002": {
+        "split": "train",
+        "frames": 470,
+        "padded_frames": 473,
+        "psnr": 26.13673282866548,
+        "mae": 7.400307781102246,
+        "seconds": 192.3488631369546,
+        "peak_gib": 27.09049654006958,
+        "directory": "/mnt/data_nas/ruibin/wrist_view_experiments/runs/20261016-wan-fullvideo-gpu2/eval-005000-episode-002"
+      },
+      "episode-003": {
+        "split": "train",
+        "frames": 381,
+        "padded_frames": 381,
+        "psnr": 26.103921710982533,
+        "mae": 8.206239587890055,
+        "seconds": 141.12090728478506,
+        "peak_gib": 26.405368328094482,
+        "directory": "/mnt/data_nas/ruibin/wrist_view_experiments/runs/20261016-wan-fullvideo-gpu2/eval-005000-episode-003"
+      },
+      "episode-004": {
+        "split": "train",
+        "frames": 356,
+        "padded_frames": 357,
+        "psnr": 28.44974203763509,
+        "mae": 3.992491551088483,
+        "seconds": 129.37441847007722,
+        "peak_gib": 26.223201274871826,
+        "directory": "/mnt/data_nas/ruibin/wrist_view_experiments/runs/20261016-wan-fullvideo-gpu2/eval-005000-episode-004"
+      },
+      "episode-005": {
+        "split": "test",
+        "frames": 310,
+        "padded_frames": 313,
+        "psnr": 10.781036723533493,
+        "mae": 47.369769055219535,
+        "seconds": 110.67202623467892,
+        "peak_gib": 25.894103527069092,
+        "directory": "/mnt/data_nas/ruibin/wrist_view_experiments/runs/20261016-wan-fullvideo-gpu2/eval-005000-episode-005"
+      }
+    },
+    "latest_resume": {
+      "path": "/mnt/data_nas/ruibin/wrist_view_experiments/runs/20261016-wan-fullvideo-gpu2/resume-005000.pt",
+      "bytes": 8820247277,
+      "sha256": "f3f1cffd69f0de4f1326e62274e54c68bd22c647016f00330a0941ce815a7808",
+      "additional_updates": 5000,
+      "global_updates": 10000
+    },
+    "artifact_existence": {
+      "episode-000": {
+        "compare.mp4": 7617497,
+        "generated.mp4": 2438643,
+        "compare.png": 271013
+      },
+      "episode-001": {
+        "compare.mp4": 8608183,
+        "generated.mp4": 2736680,
+        "compare.png": 260826
+      },
+      "episode-002": {
+        "compare.mp4": 14478759,
+        "generated.mp4": 5325750,
+        "compare.png": 290992
+      },
+      "episode-003": {
+        "compare.mp4": 10243129,
+        "generated.mp4": 3566254,
+        "compare.png": 260934
+      },
+      "episode-004": {
+        "compare.mp4": 9544772,
+        "generated.mp4": 3257793,
+        "compare.png": 219375
+      },
+      "episode-005": {
+        "compare.mp4": 8278424,
+        "generated.mp4": 2484944,
+        "compare.png": 281751
+      }
+    },
+    "worker_alive": false
+  },
+  "ego": {
+    "all_complete": {
+      "experiments": [
+        "posttrain_e1_r1",
+        "posttrain_e3_r1",
+        "posttrain_e5_r2"
+      ]
+    },
+    "all_complete_mtime_utc": "2026-10-17T10:30:18.870630+00:00",
+    "pipeline_alive": false,
+    "runs": {
+      "posttrain_e1_r1": {
+        "completed_updates": 6908,
+        "count_evidence": "final zero-based checkpoint + serial launcher returned + all_training_complete; optimizer not reloaded",
+        "first_metric_utc": "2026-10-15T08:29:37.126738+00:00",
+        "final_checkpoint": "/mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_posttrain_20260929/posttrain_e1_r1/6907",
+        "deploy_ready": {
+          "checkpoint": "/mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_posttrain_20260929/posttrain_e1_r1/6907",
+          "checkpoint_id": "egodex_pi05_posttrain_20260929_step6907",
+          "contract_hash": "8c9e141c1c0c2dde393a63d84f5b61ba2a1fec31c08e6e9eba9af54d64ce2289",
+          "action_dim": 56,
+          "chunk_steps": 16,
+          "policy_rate_hz": 30.0,
+          "train_config_wrapped": true
+        },
+        "final_checkpoint_mtime_utc": "2026-10-15T19:36:50.458158+00:00",
+        "last_logged_metric": {
+          "step": 6900,
+          "unix_time": 1792092956.531769,
+          "applied_update_norm": 0.007730372250080109,
+          "grad_norm": 0.4120810925960541,
+          "loss": 0.06865521520376205,
+          "loss_ego": 0.10149507969617844,
+          "loss_real": 0.035815369337797165,
+          "param_norm": 1804.5780029296875,
+          "update_norm": 0.007730372250080109,
+          "learning_rate": 5.000183591619134e-06,
+          "seconds_per_step": 6.445286123780534,
+          "samples_per_second": 2.4824344013163953,
+          "ego_samples": 55208,
+          "real_samples": 55208,
+          "real_coverage": 0.9993664355664971,
+          "gpu_memory_mib": 61343.0,
+          "gpu_utilization_percent": 100.0
+        },
+        "swanlab_id": "6hayni72",
+        "input_profile": null
+      },
+      "posttrain_e3_r1": {
+        "completed_updates": 13816,
+        "count_evidence": "final zero-based checkpoint + serial launcher returned + all_training_complete; optimizer not reloaded",
+        "first_metric_utc": "2026-10-15T19:39:37.220437+00:00",
+        "final_checkpoint": "/mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_posttrain_20260929/posttrain_e3_r1/13815",
+        "deploy_ready": {
+          "checkpoint": "/mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_posttrain_20260929/posttrain_e3_r1/13815",
+          "checkpoint_id": "egodex_pi05_posttrain_20260929_step13815",
+          "contract_hash": "36436ddb7fb17950c61686b4f4fc88fa5d97c7e2d2d9411277ad7e0b6ed0cc78",
+          "action_dim": 56,
+          "chunk_steps": 16,
+          "policy_rate_hz": 30.0,
+          "train_config_wrapped": true
+        },
+        "final_checkpoint_mtime_utc": "2026-10-17T05:02:34.507512+00:00",
+        "last_logged_metric": {
+          "step": 13810,
+          "unix_time": 1792213295.6157415,
+          "applied_update_norm": 0.008131912909448147,
+          "grad_norm": 0.32926756143569946,
+          "loss": 0.06839589029550552,
+          "loss_ego": 0.07825585454702377,
+          "loss_real": 0.03881599381566048,
+          "param_norm": 1804.757080078125,
+          "update_norm": 0.008131912909448147,
+          "learning_rate": 5.0000253395410255e-06,
+          "seconds_per_step": 7.979766616225243,
+          "samples_per_second": 2.005071171814378,
+          "ego_samples": 165732,
+          "real_samples": 55244,
+          "real_coverage": 1.0,
+          "gpu_memory_mib": 61343.0,
+          "gpu_utilization_percent": 100.0
+        },
+        "swanlab_id": "uy1203p2",
+        "input_profile": null
+      },
+      "posttrain_e5_r2": {
+        "completed_updates": 12089,
+        "count_evidence": "final zero-based checkpoint + serial launcher returned + all_training_complete; optimizer not reloaded",
+        "first_metric_utc": "2026-10-17T05:09:07.779486+00:00",
+        "final_checkpoint": "/mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_posttrain_20260929/posttrain_e5_r2/12088",
+        "deploy_ready": {
+          "checkpoint": "/mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_posttrain_20260929/posttrain_e5_r2/12088",
+          "checkpoint_id": "egodex_pi05_posttrain_20260929_step12088",
+          "contract_hash": "8abb5ec4c5fe061bea5289a79a5d0dd14291a6ae86217ea8073ac582239ffca4",
+          "action_dim": 56,
+          "chunk_steps": 16,
+          "policy_rate_hz": 30.0,
+          "train_config_wrapped": true
+        },
+        "final_checkpoint_mtime_utc": "2026-10-17T10:30:14.827868+00:00",
+        "last_logged_metric": {
+          "step": 12080,
+          "unix_time": 1792232988.6177666,
+          "applied_update_norm": 0.007811450399458408,
+          "grad_norm": 0.3488752245903015,
+          "loss": 0.0675382986664772,
+          "loss_ego": 0.08441375195980072,
+          "loss_real": 0.02695852890610695,
+          "param_norm": 1804.713134765625,
+          "update_norm": 0.007811449468135834,
+          "learning_rate": 5.000076271244325e-06,
+          "seconds_per_step": 1.335075598396361,
+          "samples_per_second": 11.984340077234995,
+          "ego_samples": 138069,
+          "real_samples": 55227,
+          "real_coverage": 0.9997103705446844,
+          "gpu_memory_mib": 61343.0,
+          "gpu_utilization_percent": 100.0
+        },
+        "swanlab_id": "vrd7jl5u",
+        "input_profile": {
+          "experiment": "posttrain_e5_r2",
+          "original_workers": 2,
+          "config_sha256": "4e7844567a700efcd72a7e6dfc9a04ececc3ed085bda43bc287b309fc3496993",
+          "options": {
+            "workers": 8,
+            "prefetch_factor": 4,
+            "skip_masked_wrists": true,
+            "decoder_cache_size": 16,
+            "ffmpeg_threads": 1,
+            "batch_video_queries": true,
+            "optimized_decode": true
+          },
+          "evidence_path": "/mnt/data_nas/ruibin/ego-input-bench/20261016/results_v3/benchmark_summary.json",
+          "evidence_sha256": "faa9a873d210d8b068512f860c91bdec7378c273234d5306cb5f87e23cea03ad",
+          "source_sha256": {
+            "src/openpi/training/video_loading.py": "74bdada28bfcdc6d28d3dea64ec50334893800b3231261ffd5c5d2f5f5696e64",
+            "scripts/train.py": "9023700c229a485a561b6e7ef6ff1fab377763cc021c2367d4c2743e211a5058",
+            "scripts/ego/benchmark_video_loading.py": "f96de76ec894128c3ec707a752abb6f2ac0e22de0657aa089dce928a8e23cf55",
+            "src/openpi/training/data_loader.py": "d23e889db070c3b8b257d98cb6ff6d147a31d3e13ca08126efa0d06cab498d53",
+            "src/openpi/training/coverage_sampler.py": "3770142d9195303f298cefe786bd47c6bf614a570ca41e91bc9c42529d5d135f"
+          }
+        }
+      }
+    }
+  }
+}

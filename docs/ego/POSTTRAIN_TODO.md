@@ -1,8 +1,8 @@
 # Ego 100h Post-train TODO
 
-文档状态同步：2026-10-16。入口见 [README](README.md)，完整执行证据保存在仓库外的准备 REPORT 与 `reports/posttrain_execution_20261015/`。
+文档状态同步：2026-10-19。入口见 [README](README.md)，完整执行证据保存在仓库外的准备 REPORT 与 `reports/posttrain_execution_20261015/`。
 
-用户已授权三组串行训练，并要求通过独立 CPU 对照后将输入优化用于第三组。第一组 1:1 已完成 6,908 步，最终 checkpoint 为 `posttrain_e1_r1/6907`，deploy_ready 存在且 norm SHA 与共享资产一致；第二组 3:1 继续运行；第三组 5:2 尚未启动。每组仍重新加载原 19999 权重和新 optimizer。真机全部 55,243 帧保留；改变区间需要另生成统计和计划。2026-10-16 正式 CPU 双轮对照与实际 step37 恢复检查通过；优化版 11.61/12.06 样本每秒，原版 2.40/2.06，分别加速 4.84/5.85 倍。第三组采用 worker8/prefetch4、reader缓存16、FFmpeg1线程，组间启动时读取专用 input_pipeline 配置。第二组继续使用原输入路径。实际 GPU 总 step 加速与持续利用率待第三组运行后核验。
+截至2026-10-19，三组π0.5混训均已完成：1:1为6908次更新/最终6907，3:1为13816/13815，5:2为12089/12088。第三组worker8输入优化已实际生效。三组最终checkpoint已复制到5090，91文件共17,287,304,438字节的逐文件SHA256校验通过。统一离线验证、新模型5090加载与实机质量比较仍待完成。完整实验设计、loss/冻结范围、resolved超参、曲线统计和加载路径见[COMPARISON](posttrain_comparison_20261017/COMPARISON.md)。
 
 | 优先级 | 项目 | 当前状态 | 完成条件 / 依赖 |
 |---|---|---|---|
@@ -17,7 +17,7 @@
 | P0 | checkpoint 保存恢复 | 独立短测完成 3 次优化更新；恢复后 130 个状态数组逐值一致，step=3，norm/contract/deploy_ready 通过 | 第一组最终 checkpoint 已生成且 ready/norm 核对通过；完整模型评价仍待完成 |
 | P0 | 部署加载 | 短测封装 checkpoint 经 policy factory 完整加载，真实输入输出有限 16×56 absolute 动作，abs max 1.77356 | 离线检查通过，无机器人命令；实机闭环另行验收 |
 | P0 | 指标与上传 | 云端创建、上传及稳定 ID 补传通过；认证刷新修复通过；来源 loss 回归测试确认总 loss/参数更新不变 | 本地 metrics 与 pending 均 fsync；正式训练需持续查看曲线 |
-| P0 | 正式训练 | 1:1 已完成 6,908 步，最终目录 `6907`；3:1 运行中，云端 run `uy1203p2`；5:2 等待组间交接 | [1:1 SwanLab](https://swanlab.cn/@laryybb626/imitation/runs/6hayni72)、[3:1 SwanLab](https://swanlab.cn/@laryybb626/imitation/runs/uy1203p2)；固定验证集和实机比较待做 |
+| P0 | 正式训练 | 三组完成6908/13816/12089更新，最终目录6907/13815/12088；5:2 worker8已生效 | 已完成训练；统一离线与实机质量待评价 |
 | P0 | 数据供给与 GPU 空转 | 40 秒连续采样平均 GPU 利用率 21.6%，75.8% 点为 0%；主线程 83.1% 采样时间在等 DataLoader，worker 主要在视频读取解码 | 已完成官方方案调研；按下方视频优化清单执行 worker/预取 → 有界 decoder 缓存/批量取帧 → 兼容的 TorchCodec/NVDEC → 存储分片；补 loader_wait、compute_time 和平均利用率 |
 | P0 | 是否扩轮与验证依据 | 当前真机覆盖 1 轮；近期真机训练 loss 明显下降，但未建立本轮独立真机验证集 | 保留 1 轮基线，建议后续评估 3 轮预算（20,720 / 41,440 / 36,260 步），有效改善时再考虑 5 轮；固定 Ego val、独立真机数据与实机效果决定；扩轮和学习率/采样恢复需统一规划 |
 | P1 | 入口、资产和架构清单 | 已列审阅清单；100h 与 checkpoint 基本元数据已核实 | 补 OSS 实际大小、引用、哈希与迁移恢复方案；目录清理先审阅 |
@@ -27,11 +27,12 @@
 | P1 | 100h 基线评价与部署 | 20k 训练已完成；固定验证集比较和 5090 部署验收仍待完成 | 在固定验证集比较初始化/10k/20k 的左右臂、左右手 MAE 与回放，再按部署流程验收 |
 | P2 | 确定性批量直出 | 未开始 | 锁、断点恢复、原子发布、重试、失败回归和吞吐验收后，再提 HDF5 链路退役方案 |
 
-## 下一步执行顺序（10 月 15 日 GPU 验收后）
+## 下一步执行顺序（2026-10-19）
 
-1. 在同一张 A100 5 卡串行执行 1:1 → 3:1 → 5:2；各组独立目录、独立 optimizer 和稳定 SwanLab run ID。
-2. 跟踪本地 `metrics.jsonl` 与云端 loss、来源 loss、梯度、学习率、覆盖进度和吞吐；上传异常用待补文件恢复。
-3. 核验正式 checkpoint 的 `deploy_ready.json`，完成固定验证集比较；之后才进行实机闭环评价。
+1. 固定Ego验证样本及独立真机数据清单，统一比较19999和三组最终checkpoint；按域、左右臂/手分别统计。
+2. 核对本地metrics与SwanLab记录完整性；文件迁移已完成，不重复传输。
+3. 完成5090新三组完整离线加载/输出验收后，再安排统一实机试验；当前无新模型实机结论。
+
 
 P1/P2 保留工程与评价待办；新直出字段顺序问题须在使用该入口新产物前修复。当前三组实验使用既有 100h 数据。
 
@@ -80,7 +81,13 @@ GPU 执行日志：A100 `/mnt/data_nas/ruibin/ego-posttrain-prep/20261015/pipeli
 
 - [x] 14个边界样本、完整12089-batch采样、四轮132-batch逐字段对照与实际step37恢复。
 - [x] 前三项优化、六项profile验收检查；保留原代码快照和暂停记录。
-- [ ] 第三组开始后核对run内input_pipeline.json、实际worker8和持续GPU利用率/step耗时。
-- [ ] 三组最终checkpoint、SwanLab记录完整性和固定验证集/实机评价。
+- [x] 第三组run内input_pipeline与实际worker8已核对，末100条日志平均1.577秒/step；持续GPU平均利用率仍未测量。
+- [x] 三组最终checkpoint生成、5090迁移及逐文件SHA256校验。
+- [ ] SwanLab与本地完整记录对齐、统一固定验证和新模型实机评价。
 
 正式证据：A100 `/mnt/data_nas/ruibin/ego-input-bench/20261016/results_v3/`；benchmark_summary、handoff_validation与publication分别记录长测、入口验证和发布状态。CPU吞吐提升不是已实测GPU训练总加速。
+
+
+## 历史快照：2026-10-17 已授权5:2接续与比较记录
+
+用户已明确要求开始5:2。原GPU5串行流水线仍运行3:1，5:2已排队，前组最终deploy_ready通过后自动接续；不重复启动。实际5:2启动/指标递增仍待核验，不标已完成。完整记录：[三比例COMPARISON](posttrain_comparison_20261017/COMPARISON.md)；证据[snapshot](posttrain_comparison_20261017/snapshot.json)。记录区分相同真机暴露与不同步数/计算预算；固定离线验证和实机评价结果仍未知，未启动额外评价。

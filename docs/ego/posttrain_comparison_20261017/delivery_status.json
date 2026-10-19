@@ -1,0 +1,16 @@
+{
+  "updated_utc": "2026-10-17T04:07:34.792962+00:00",
+  "previews_completed": 6,
+  "full_decode_all": true,
+  "browser_open_command": "open report.html succeeded; browser playback not inspected",
+  "report_refs_checked": 16,
+  "missing_report_refs": [],
+  "e5_checked_utc": "2026-10-17T04:04:49.248804+00:00",
+  "e3_step": 13430,
+  "e3_steps_planned": 13816,
+  "e3_estimated_finish_utc": "2026-10-17T05:02:44.590604+00:00",
+  "e5_state": "queued_in_existing_pipeline; no run directory at last check",
+  "e5_start_verified": false,
+  "training_modified": false,
+  "library_uploaded": false
+}
