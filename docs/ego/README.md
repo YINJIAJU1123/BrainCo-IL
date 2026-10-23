@@ -2,9 +2,31 @@
 
 项目记录：A100 是工作环境，Mac 用于调试与 review。Mac 两仓库的历史基线及 Post-train 准备代码已于 2026-09-29 提交并推送到 `ego-train`；2026-10-15 已保护原改动并同步 A100：IL 准备提交 `25c5e5e`、Dataset `c5bb19b`，post-train 脚本与三份配置已到位。
 
+2026-10-23 本地资料整理：按用户批准移除旧实验组 A＋B＋C01＋C02，保留 B14 网格指尖统一改善实验及当前交付；关键文字／参数记录归档NAS。Mac wrist-view-sim/brainco-description 已完整迁移NAS（1337文件逐一SHA256），移除本地副本；[清理结果](</Users/larrybb/Documents/ChatGPT/Ego data/reports/record_cleanup_review_20261023/CLEANUP_RESULT.md>)、[模型位置与恢复](</Users/larrybb/Documents/ChatGPT/Ego data/wrist-view-sim/brainco-description.NAS.md>)。全量运行目录与正式仓库源码均未清理。
+
 ## 文档导航与更新依据
 
 本文件是 Ego 项目的总入口，后文保留历史管线记录。截至2026-10-19，三组π0.5混训均已完成：1:1为6908次更新/最终6907，3:1为13816/13815，5:2为12089/12088。第三组worker8输入优化已实际生效。三组最终checkpoint已复制到5090，91文件共17,287,304,438字节的逐文件SHA256校验通过。统一离线验证、新模型5090加载与实机质量比较仍待完成。完整实验设计、loss/冻结范围、resolved超参、曲线统计和加载路径见[COMPARISON](posttrain_comparison_20261017/COMPARISON.md)。
+
+### 自采 RGB v3：动作处理阶段结果
+
+截至 **2026-10-23 14:32（北京时间）**：约 **41 分 31 秒、720p、405 个动作段、74644 帧**的自采 RGB v3，输入已全部逐帧核对通过；全量正在物理 GPU2（约 8.65 GiB 显存）与四路 CPU 上处理。**70/405 段**完成 HDF5、数值检查和完整机器人对照视频，**176/405 段**预测就绪（含 24 段原缓存）；第31段因活动手侧别歧义隔离，其余继续。全量最终视觉验收仍待完成。
+
+采用原始 MINT/MANO、统一官方 RevoTron／EgoDex 双臂后端、真机 EEF 高度修正；机器人手部统一到网格指尖，并全程加入跨关节和拇指相对位置约束，再修复最终 action 的连续性与碰撞。已去掉人工抓握时间窗口。此前 RGB 修指出现短暂弯指后回退，**未通过验收，不用于当前全量**；不再将“闭合偏晚已修好”作为结论。第 35 段避碰跳变和第 53 段 QP 数值越限已修复，未放宽手指 2°/帧、限位及 0.5 mm 手内穿透检查；双臂沿用原 0.15 rad/帧限制。24 段数值与关键帧视觉复核、34 项相关测试通过，284／286 段原始 MANO 与机器人仍偏开，记录为质量局限。
+
+| 时间口径 | 记录与范围 |
+| --- | --- |
+| 源视频时长 | 约 41 分 31 秒；六源、405 段独立处理，不跨拼接边界跟踪或平滑 |
+| 输入准备实测 | 约 23 分钟；无损切段、三文件 SHA256 和全帧像素核对 |
+| 初始整批机器处理预估 | 10–16 小时：单 GPU 推理与四路 CPU 求解／QC／完整回放交叠；不是仅 MINT 推理，也不是训练时间 |
+| 串行阶段外推基准 | 约 31.01 小时，其中 MINT 4.12 小时、CPU 求解及回放 26.89 小时；外推值而非整批实测 |
+| 最新剩余时间估计 | 截至上述快照约还需 8–10 小时生成 HDF5 与完整动作视频；异常重处理和人工终验另计 |
+
+运行产物：`/mnt/data_nas/ruibin/runs/mint_ego_bread_fruit_v3/full_v3_20261023`，控制 PID/PGID `3963077`；源码为 Dataset `ego-train` 的 `c6f24b5ce2d24a2765dcdffaf450b29ce90e315f` 加冻结的未提交覆盖及 SHA256。状态、逐段参数和来源看运行目录 `state.json`／`evidence/`，不要只凭 HEAD 复现。结束后的 GPU2 留存已配置，实际计算尚在进行，留存守护尚未启动。没有 commit／push。
+
+本阶段交付为 **HDF5 action 与可视化**，未做 policy 混训、LeRobot 新数据导出或真机部署；`direct_to_lerobot.py` 的 42 手部字段顺序问题仍未解决，不能把此次产物称为已经接入 IL 训练。相机／工作区为虚拟对齐，物体真实接触未验证。
+
+本节记录这条自采 RGB 支线，旧 100h EgoDex／三比例混训结果仍按各自批次理解。问题与解决方法统一维护在 [Dataset 总记录](/Users/larrybb/PycharmProjects/BrainCo-Dataset/docs/ego/self_captured_v3.md)；当前全量记录见[执行报告](</Users/larrybb/Documents/ChatGPT/Ego data/reports/mint_full_v3_20261023/REPORT.md>)。
 
 | 文件 | 用途与更新方式 |
 |---|---|
@@ -201,3 +223,5 @@ SwanLab 本地面板可用 `/mnt/data_nas/ruibin/.venvs/ego-train/bin/swanlab wa
 - [ ] 把单片段 EgoDex 直出扩为批量管线，补齐确定性计划、source 隔离、锁与断点恢复、失败清理、代表性吞吐基准和自动化回归测试，再决定旧 HDF5 中转实现的归档/退役。
 - [ ] 为 OSS 原始/历史中间产物、NAS 权威 LeRobot 与 checkpoint、本地 scratch 建立清单和保留策略；先固定引用与校验和，再考虑迁移或清理现有 100 小时数据。
 - [ ] 修齐黑手腕补齐后的 train/val `provenance.json`，并验证视频、元数据和报告一致；为数据转换与固定验证集评估补齐版本化结果。
+
+2026-10-23 提交前补充：Dataset本次独立CPU复测75项全部通过；全量尚在运行，活动手歧义段隔离，不等于已完成视觉终验。reports旧过程目录完整归档NAS后清理，当前交付与指尖统一改善实验保留。验证记录见[Dataset证据](/Users/larrybb/PycharmProjects/BrainCo-Dataset/docs/ego/evidence/self_captured_v3_20261023_validation.json)。
