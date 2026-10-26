@@ -35,7 +35,7 @@
 - `b3f3c65`：连续性/碰撞/限位修复、活动手与QC/批处理稳定性。
 - `71e4cc9`：本次补交Dataset后续记录、两仓库边界说明和逐文件源码审计；不改变算法。
 
-完整文件及验证范围见 [Dataset 提交清单](/Users/larrybb/PycharmProjects/BrainCo-Dataset/docs/ego/COMMIT_AUDIT_20261026.md)。
+完整文件及验证范围见 [Dataset 提交清单](../../../BrainCo-Dataset/docs/ego/COMMIT_AUDIT_20261026.md)。
 
 ## 已核对的实际运行与工作区
 
