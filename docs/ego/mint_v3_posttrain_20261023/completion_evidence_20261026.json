@@ -1,0 +1,86 @@
+{
+  "checked_utc": "2026-10-26T02:16:24.444123+00:00",
+  "runs": [
+    {
+      "experiment": "mint388_e1_r1",
+      "final_checkpoint_step": 6907,
+      "completed_updates": 6908,
+      "returncode": 0,
+      "finished_unix": 1792819071.1231751,
+      "metric_records": 691,
+      "latest_logged_step": 6900,
+      "all_logged_metrics_finite": true,
+      "tail100_logged_records_mean": {
+        "loss": 0.03027592780068517,
+        "loss_real": 0.03290280988439918,
+        "loss_ego": 0.02764904549345374,
+        "seconds_per_step": 1.3748398620616644
+      },
+      "initial_params": "/mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/19999/params",
+      "fresh_optimizer": true,
+      "swanlab_id": "53jbnc93",
+      "pending_upload_file": false,
+      "checkpoint_descriptor_files": [
+        "policy_contract.json",
+        "deploy_ready.json",
+        "train_config.yaml"
+      ],
+      "quality_evaluation_completed": false
+    },
+    {
+      "experiment": "mint388_e3_r1",
+      "final_checkpoint_step": 13815,
+      "completed_updates": 13816,
+      "returncode": 0,
+      "finished_unix": 1792828587.3938868,
+      "metric_records": 1382,
+      "latest_logged_step": 13810,
+      "all_logged_metrics_finite": true,
+      "tail100_logged_records_mean": {
+        "loss": 0.023982178177684544,
+        "loss_real": 0.03209219571202993,
+        "loss_ego": 0.021278839921578765,
+        "seconds_per_step": 1.3562866336060688
+      },
+      "initial_params": "/mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/19999/params",
+      "fresh_optimizer": true,
+      "swanlab_id": "43erelqs",
+      "pending_upload_file": false,
+      "checkpoint_descriptor_files": [
+        "policy_contract.json",
+        "deploy_ready.json",
+        "train_config.yaml"
+      ],
+      "quality_evaluation_completed": false
+    },
+    {
+      "experiment": "mint388_e5_r2",
+      "final_checkpoint_step": 12088,
+      "completed_updates": 12089,
+      "returncode": 0,
+      "finished_unix": 1792826195.0272288,
+      "metric_records": 1209,
+      "latest_logged_step": 12080,
+      "all_logged_metrics_finite": true,
+      "tail100_logged_records_mean": {
+        "loss": 0.024663342665880918,
+        "loss_real": 0.031454510837793354,
+        "loss_ego": 0.021930189011618494,
+        "seconds_per_step": 1.3511650040508247
+      },
+      "initial_params": "/mnt/data_nas/ruibin/BrainCo-IL/checkpoints/egodex_pi05_100h_offset0_20260923/offset0_bs16_steps20000_v1/19999/params",
+      "fresh_optimizer": true,
+      "swanlab_id": "j63wckkr",
+      "pending_upload_file": false,
+      "checkpoint_descriptor_files": [
+        "policy_contract.json",
+        "deploy_ready.json",
+        "train_config.yaml"
+      ],
+      "quality_evaluation_completed": false
+    }
+  ],
+  "source_root": "/mnt/data_nas/ruibin/ego-posttrain-prep/mint_v3_388_20261023",
+  "training_completed": true,
+  "full_new_model_or_robot_acceptance": false
+}

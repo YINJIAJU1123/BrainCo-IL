@@ -1,0 +1,84 @@
+{
+  "passed": true,
+  "updates": 2,
+  "finite_metrics": [
+    {
+      "applied_update_norm": 0.0005093354266136885,
+      "grad_norm": 2.456598997116089,
+      "loss": 0.2849516272544861,
+      "loss_ego": 0.28642746806144714,
+      "loss_real": 0.28347575664520264,
+      "param_norm": 1804.4024658203125,
+      "update_norm": 0.0005088457837700844
+    },
+    {
+      "applied_update_norm": 0.0008508774917572737,
+      "grad_norm": 3.001795530319214,
+      "loss": 0.34911635518074036,
+      "loss_ego": 0.24756428599357605,
+      "loss_real": 0.4506683945655823,
+      "param_norm": 1804.4024658203125,
+      "update_norm": 0.0008508770843036473
+    }
+  ],
+  "full_state_optimizer_restore_equal": true,
+  "restored_step": 2,
+  "deployment_contract_and_ready_present": true,
+  "checkpoint": "/mnt/data_nas/ruibin/ego-posttrain-prep/mint_v3_388_20261023/checkpoints/validation/model_roundtrip/1",
+  "masks": {
+    "base_0_rgb": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ],
+    "left_wrist_0_rgb": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false
+    ],
+    "right_wrist_0_rgb": [
+      false,
+      true,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  }
+}

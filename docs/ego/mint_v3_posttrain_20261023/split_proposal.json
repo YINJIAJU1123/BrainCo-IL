@@ -1,0 +1,43 @@
+{
+  "status": "proposal_not_approved",
+  "splits": {
+    "train": {
+      "groups": [
+        "GX010158",
+        "GX010159",
+        "GX010161",
+        "GX010165"
+      ],
+      "episodes": 345,
+      "frames": 62469,
+      "tasks": {
+        "put bread into right basket": 166,
+        "put fruit into left basket": 179
+      }
+    },
+    "val": {
+      "groups": [
+        "GX010149"
+      ],
+      "episodes": 16,
+      "frames": 3051,
+      "tasks": {
+        "put bread into right basket": 8,
+        "put fruit into left basket": 8
+      }
+    },
+    "test": {
+      "groups": [
+        "GX010151"
+      ],
+      "episodes": 27,
+      "frames": 5655,
+      "tasks": {
+        "put bread into right basket": 13,
+        "put fruit into left basket": 14
+      }
+    }
+  },
+  "shared_source_groups": false,
+  "session_independence": "unverified"
+}

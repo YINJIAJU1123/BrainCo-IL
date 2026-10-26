@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "splits": {
+    "train": {
+      "episodes": 345,
+      "frames": 62469,
+      "root": "/mnt/data_nas/ruibin/ego-posttrain-prep/mint_v3_388_20261023/lerobot/train"
+    },
+    "val": {
+      "episodes": 16,
+      "frames": 3051,
+      "root": "/mnt/data_nas/ruibin/ego-posttrain-prep/mint_v3_388_20261023/lerobot/val"
+    },
+    "test": {
+      "episodes": 27,
+      "frames": 5655,
+      "root": "/mnt/data_nas/ruibin/ego-posttrain-prep/mint_v3_388_20261023/lerobot/test"
+    }
+  },
+  "all_action_state_values_exact": true,
+  "all_clip_sha_and_frame_count_verified": true,
+  "source_hdf5_unchanged": true,
+  "excluded_count": 17,
+  "task": "put bread into left basket and put fruit into right basket",
+  "loader_validation": "pending"
+}

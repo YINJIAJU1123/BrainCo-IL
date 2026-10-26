@@ -1,4 +1,45 @@
+## 2026-10-26：三组 MINT 混训完成与 5090 交付
+
+- [x] 三组训练退出码 0，最终步 6907 / 13815 / 12088；全部日志指标有限。
+- [x] 最终配置核实为 EgoDex 100h mid-train 19999 初始化、新 optimizer。
+- [x] 最终 checkpoint 的 contract hash、56D、horizon16、30Hz、共享 norm 核验通过。
+- [x] 三组完整最终 checkpoint 传至 5090，91文件 SHA全部一致，新目录已发布。
+- [x] 用户授权按采样支持、实验脚本、配置与交付记录分三批 commit；未 push。
+- [ ] SwanLab 云端逐点记录核对、统一离线留出评估与真机任务评价。
+
+当前记录见 [REPORT](mint_v3_posttrain_20261023/REPORT.md)。
+
+## 2026-10-24：388 段三比例执行
+
+- [x] 用户确认统一任务文本和旧 30.7 分钟真机来源。
+- [x] 388 段 LeRobot 导出；train/val/test 为 345/16/27 段；17 段排除。
+- [x] 视频 SHA/帧数、56D action/state 逐值验证；345 段尾部 padding 无跨段。
+- [x] 小 Ego 池显式逐轮洗牌；三组全配额、共同前缀、恢复位置和单元测试通过。
+- [x] 新数据原版/优化版视频、动作、prompt 抽查一致；启用独立输入 profile。
+- [x] GPU 两次更新有限值及 checkpoint 全状态保存恢复、部署描述文件检查。
+- [x] 三组正式启动：0/4/6卡，均已核实step10有限值指标、SwanLab云端实验与链接。
+- [ ] 完成后核对三组最终 checkpoint、contract/norm、SwanLab 记录；按源视频留出及统一真机方案评价。
+
+当前证据与后续状态见 [REPORT](mint_v3_posttrain_20261023/REPORT.md)。下方保留历史记录。
+
+> 2026-10-24：388 段 LeRobot 导出完成，用户确认统一 task 和三组混训；loader/GPU 验证通过，三组正式训练已启动。当前状态见 [执行 REPORT](mint_v3_posttrain_20261023/REPORT.md)。
+
 # Ego 100h Post-train TODO
+
+## 2026-10-23 自采388段：准备完成，训练方案待确认
+
+[首轮推荐与证据](mint_v3_posttrain_20261023/PREPARATION.md)：388段/71175帧，仅数值通过；17段保持隔离。
+
+- [x] 冻结388来源清单/当前HDF5 SHA；无隔离动作混入。
+- [x] 按元数据关节名处理42手部顺序，388段56D逐列/逆映射/NPZ落盘逐值一致。
+- [x] 统计六源、提出345 train/16 val/27 test整源分组方案，核查旧数据provenance；session独立性尚未核实。
+- [x] 检查旧共享norm的分布迁移；GPU2守护身份/9GiB已核实并保留。
+- [ ] 用户确认初始化19999、1:1、真机一轮6908步及旧真机来源；固定split。
+- [ ] LeRobot导出、真实loader字段/相机/prompt/帧边界与模型/恢复验收。
+- [ ] 在隔离目录实际启动，记录PID、resolved配置、首步指标和SwanLab链接。
+
+以上是本批新准备，旧100h三比例实验已完成，保持独立记录。未commit或push。
+
 
 文档状态同步：2026-10-19。入口见 [README](README.md)，完整执行证据保存在仓库外的准备 REPORT 与 `reports/posttrain_execution_20261015/`。
 

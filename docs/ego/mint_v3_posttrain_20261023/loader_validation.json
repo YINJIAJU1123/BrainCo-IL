@@ -1,0 +1,52 @@
+{
+  "passed": true,
+  "selected_options": {
+    "workers": 8,
+    "prefetch_factor": 4,
+    "skip_masked_wrists": true,
+    "decoder_cache_size": 16,
+    "ffmpeg_threads": 1,
+    "batch_video_queries": true,
+    "optimized_decode": true
+  },
+  "all_train_episode_tails_checked": 345,
+  "raw_video_action_prompt_bitwise_equal_indices": [
+    0,
+    31,
+    62468,
+    62469,
+    62500,
+    117711
+  ],
+  "raw_and_optimized_seconds": [
+    2.7267374331131577,
+    1.1021278272382915
+  ],
+  "sampling": {
+    "e1_r1": {
+      "steps": 6908,
+      "ego_count": 55264,
+      "ego_unique": 55264,
+      "real_count": 55264,
+      "padding": 21,
+      "sample_plan_sha256": "3ecbc7ba3a735c08d45fe96a419827e452e432d5c7e75fefac848d6a96459ce7"
+    },
+    "e3_r1": {
+      "steps": 13816,
+      "ego_count": 165792,
+      "ego_unique": 62469,
+      "real_count": 55264,
+      "padding": 21,
+      "sample_plan_sha256": "125e0c2ee2a7083d8e6afbf3e6a2c88f754197f524ba43939d99235895885831"
+    },
+    "e5_r2": {
+      "steps": 12089,
+      "ego_count": 138160,
+      "ego_unique": 62469,
+      "real_count": 55264,
+      "padding": 21,
+      "sample_plan_sha256": "5b9a7ad753779d629647590fabe5b7310fa4de9a50e2ece83a88be2a76aede84"
+    }
+  },
+  "split": "source-video grouped; session independence unverified"
+}

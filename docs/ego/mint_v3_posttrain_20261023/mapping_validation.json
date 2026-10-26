@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "episodes": 388,
+  "frames": 71175,
+  "source_hdf5_current_sha_matches": true,
+  "named_mapping_and_roundtrip_bitwise_equal": true,
+  "affected_hand_fields": 42,
+  "old_direct_exporter_not_used": true,
+  "reference_names_match": true,
+  "source_metadata_names_used": true,
+  "quarantine_actions_read": false,
+  "gpu_used": false
+}

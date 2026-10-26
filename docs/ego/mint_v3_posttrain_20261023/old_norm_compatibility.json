@@ -1,0 +1,87 @@
+{
+  "status": "diagnostic_only_proposed_train_groups",
+  "shared_norm_sha256": "94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb",
+  "splits_not_approved": true,
+  "groups": {
+    "state": {
+      "left_arm": {
+        "outside_q01_q99_fraction": 0.013700509738544604,
+        "max_abs_normalized": 1.4886449799826642
+      },
+      "right_arm": {
+        "outside_q01_q99_fraction": 0.01939247581085933,
+        "max_abs_normalized": 1.850395291263407
+      },
+      "left_hand": {
+        "outside_q01_q99_fraction": 0.04789804314368498,
+        "max_abs_normalized": 3.0945483828185365
+      },
+      "right_hand": {
+        "outside_q01_q99_fraction": 0.07726194097034034,
+        "max_abs_normalized": 1.8324397581646594
+      }
+    },
+    "actions": {
+      "left_arm": {
+        "outside_q01_q99_fraction": 0.009441826002840267,
+        "max_abs_normalized": 3.1092098524968454
+      },
+      "right_arm": {
+        "outside_q01_q99_fraction": 0.004672317469464855,
+        "max_abs_normalized": 3.2715066170982263
+      },
+      "left_hand": {
+        "outside_q01_q99_fraction": 0.052751593361735995,
+        "max_abs_normalized": 2.983753322409638
+      },
+      "right_hand": {
+        "outside_q01_q99_fraction": 0.10407152423792677,
+        "max_abs_normalized": 2.0860942519086283
+      }
+    }
+  },
+  "state_largest_dimensions": [
+    {
+      "name": "left_thumb_DIP_joint",
+      "max_abs_normalized": 3.0945483828185365
+    },
+    {
+      "name": "right_arm_joint3",
+      "max_abs_normalized": 1.850395291263407
+    },
+    {
+      "name": "right_thumb_CMR_joint",
+      "max_abs_normalized": 1.8324397581646594
+    },
+    {
+      "name": "left_arm_joint7",
+      "max_abs_normalized": 1.4886449799826642
+    },
+    {
+      "name": "left_thumb_CMR_joint",
+      "max_abs_normalized": 1.4862895889013212
+    }
+  ],
+  "actions_largest_dimensions": [
+    {
+      "name": "right_arm_joint1",
+      "max_abs_normalized": 3.2715066170982263
+    },
+    {
+      "name": "left_arm_joint6",
+      "max_abs_normalized": 3.1092098524968454
+    },
+    {
+      "name": "left_thumb_DIP_joint",
+      "max_abs_normalized": 2.983753322409638
+    },
+    {
+      "name": "left_thumb_MCP_joint",
+      "max_abs_normalized": 2.649159870908566
+    },
+    {
+      "name": "left_arm_joint1",
+      "max_abs_normalized": 2.1040179700619666
+    }
+  ]
+}

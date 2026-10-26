@@ -1,0 +1,35 @@
+{
+  "passed": true,
+  "checked_unix": 1792981554.7926195,
+  "root": "/home/phoebe/Brainco/egodex_pi05_posttrain_20261024_mint388",
+  "files": 91,
+  "bytes": 17287829209,
+  "runs": {
+    "mint388_e1_r1": {
+      "step": 6907,
+      "contract_hash": "bd412c9c870661113f0d16333167b2d3d8c21d5315a465b2552b5bc3b2dafdf0",
+      "norm_sha256": "94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb",
+      "descriptor_files_present": true,
+      "optimizer_state_included": true
+    },
+    "mint388_e3_r1": {
+      "step": 13815,
+      "contract_hash": "82796448ab32940f9fd403fe630e2706c52ca933bb90167c0c9dcf5753ccf39d",
+      "norm_sha256": "94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb",
+      "descriptor_files_present": true,
+      "optimizer_state_included": true
+    },
+    "mint388_e5_r2": {
+      "step": 12088,
+      "contract_hash": "32622604654c56fda36a7c1eb09cff01a2ec951071891ee7fd9361bd5f57c8c3",
+      "norm_sha256": "94398dac18e6717128104ff0d0cd5a15665c5fb451ae876c9c863f366a589eeb",
+      "descriptor_files_present": true,
+      "optimizer_state_included": true
+    }
+  },
+  "all_sha256_match": true,
+  "full_model_load_tested": false,
+  "verification_root": "/home/phoebe/Brainco/.incoming_mint388_20261026",
+  "published_unix": 1792981560.668121,
+  "atomic_directory_rename": true
+}

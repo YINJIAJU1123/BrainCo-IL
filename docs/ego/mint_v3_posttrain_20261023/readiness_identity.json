@@ -1,0 +1,31 @@
+{
+  "gpu_guard": {
+    "pid": 165099,
+    "start_identity_verified": true,
+    "uuid": "GPU-c68e12f9-1b24-2cb3-fa25-fea06e91b615",
+    "allocated_bytes": 9663676416,
+    "released": false
+  },
+  "source_history_checks": [
+    {
+      "dataset": "egodex_100h_offset0_lerobot21",
+      "path": "/mnt/data_nas/ruibin/dataset/egodex_100h_offset0_lerobot21/train/meta/provenance.json",
+      "sha256": "3286d72ddb1771e9919a0d6a72858f5627cc46ced7bfaed652f73ab9507fbc8c",
+      "origin_batch": null,
+      "source_group_identifiers_present": false,
+      "recorded_family": "EgoDex; self-captured source-video/session hash table not present"
+    },
+    {
+      "dataset": "egodex_teleop_20260916_lerobot21",
+      "path": "/mnt/data_nas/ruibin/dataset/egodex_teleop_20260916_lerobot21/train/meta/provenance.json",
+      "sha256": "34ae5aae7db7ab8d2a6b3d18c9e4c48ce41deb74937600e118d6c93034b4822a",
+      "origin_batch": "/mnt/data_nas/ruibin/egodex_train_action_gap25_20260916_teleop",
+      "source_group_identifiers_present": false,
+      "recorded_family": "EgoDex; self-captured source-video/session hash table not present"
+    }
+  ],
+  "prior_self_captured_data_policy_training_manifest_found": false,
+  "history_limit": "Checked existing IL docs, named dataset directories and provenance; unknown sessions and unindexed runs are not proven disjoint",
+  "training_started": false,
+  "shared_IL_status": ""
+}

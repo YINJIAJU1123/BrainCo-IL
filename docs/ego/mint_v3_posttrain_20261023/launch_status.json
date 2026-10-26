@@ -1,0 +1,32 @@
+{
+  "runs": [
+    {
+      "experiment": "mint388_e1_r1",
+      "ratio": "e1_r1",
+      "gpu_index": 0,
+      "gpu_uuid": "GPU-412f73ba-2ae4-4b78-512f-0bb002a01569",
+      "supervisor_pid": 1200774,
+      "proc_start_ticks": "412426150",
+      "config_sha256": "1d6f711f55bbb0c3c8bf8b0ebfb7965aaeb00a429808c16db0d245c42a2e81b0"
+    },
+    {
+      "experiment": "mint388_e3_r1",
+      "ratio": "e3_r1",
+      "gpu_index": 4,
+      "gpu_uuid": "GPU-02bab9e1-3f3c-9871-ee5f-ff6f3b34b1e3",
+      "supervisor_pid": 1200780,
+      "proc_start_ticks": "412426158",
+      "config_sha256": "a1771c2f9144c487b0da58574547260a188bd278838fefb2951a7cdd267fd188"
+    },
+    {
+      "experiment": "mint388_e5_r2",
+      "ratio": "e5_r2",
+      "gpu_index": 6,
+      "gpu_uuid": "GPU-0bc4d417-338f-f420-aa4f-ae2057ce49a1",
+      "supervisor_pid": 1200784,
+      "proc_start_ticks": "412426170",
+      "config_sha256": "a2cfe7fc507ce721bb943e3a300f87c952f2fcf2af76807877b35ebd4d4d0e37"
+    }
+  ],
+  "time": 1792809348.6248229
+}

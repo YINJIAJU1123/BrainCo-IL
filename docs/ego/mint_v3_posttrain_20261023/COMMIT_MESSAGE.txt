@@ -1,0 +1,47 @@
+Commit 1: fbb9ee9
+
+feat(ego): support deterministic Ego reuse in coverage sampling
+
+Add the explicit coverage_ego_repeat option for datasets whose Ego quota
+exceeds the available training starts. Draw successive seeded permutations
+while preserving per-pass uniqueness, shared ratio prefixes, fixed real
+coverage and optimizer-step resume.
+
+Keep the default unique-only quota check for existing recipes. Cover repeated
+passes, shared prefixes and resumed batches in the sampler tests.
+
+Validation: all 3 coverage sampler tests passed on the isolated A100 source;
+the four changed training files match the source used by the completed runs.
+
+Commit 2: 35b058f
+
+feat(ego): add verified MINT-to-LeRobot post-training workflow
+
+Add experiment-scoped scripts to freeze the approved 388-episode pool,
+reorder 56 joint fields by metadata names, export LeRobot source-video
+splits and generate the three mixed-data configurations.
+
+Include loader and sampling parity checks, a real GPU update/checkpoint
+roundtrip check, isolated single-GPU launch helpers and a SHA256 delivery
+verifier. Preserve source artifacts and exclude the 17 quarantined episodes.
+
+Validation: 388 exports and named-action mappings verified; 345 episode tails
+checked; loader parity, complete sampling plans and a two-update GPU state
+roundtrip passed. All experiment scripts parse successfully.
+
+Commit 3: experiment records and verified delivery
+
+docs(ego): record completed MINT mixture runs and 5090 delivery
+
+Record the source-video train/validation/test split, confirmed shared sorting
+task, fixed real exposure, Ego reuse counts and the three completed recipes.
+All runs start from EgoDex 100h checkpoint 19999 with fresh optimizers and
+reuse the shared norm and existing verified video-loading profile.
+
+Include resolved configs, provenance and validation evidence, SwanLab run
+links, final checkpoint metadata and 5090 SHA256 delivery verification.
+Update README and TODO with completed work and pending quality evaluation.
+
+Validation: all 91 delivered checkpoint files (17,287,829,209 bytes) match
+the A100 SHA256 manifest; contract hashes, norm, 56D/chunk16/30Hz and required
+descriptor files verified on 5090. Full model/robot evaluation is pending.
