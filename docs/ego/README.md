@@ -1,3 +1,5 @@
+> 2026-10-26 两仓库提交核对：Dataset负责指尖/手臂/动作标签，IL负责导出接口/抽样/训练；重要代码均有提交并与运行副本核对。见 [IL清单及Dataset对应提交](COMMIT_AUDIT_20261026.md)。本次不push。
+
 > 2026-10-26：自采 MINT 388 段三组混训均已完成，已交付 5090，91文件 SHA256 全部一致；初始化及分批提交记录见 [REPORT](mint_v3_posttrain_20261023/REPORT.md)。
 
 > 2026-10-24：388 段 LeRobot 导出完成，用户确认统一 task 和三组混训；loader/GPU 验证通过，三组正式训练已启动。当前状态见 [执行 REPORT](mint_v3_posttrain_20261023/REPORT.md)。

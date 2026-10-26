@@ -1,0 +1,86 @@
+{
+  "checked_utc": "2026-10-26T02:35:43.931122+00:00",
+  "repository": "/Users/larrybb/PycharmProjects/BrainCo-IL",
+  "branch": "ego-train",
+  "head_before_audit": "55525e12993eab255b576fbf0346991fcf64b159",
+  "checked_files": 12,
+  "all_checked_code_committed_and_matches_isolated_remote": true,
+  "files": [
+    {
+      "path": "src/openpi/training/config.py",
+      "committed_sha256": "d8ccbf5240ff922b815f5390ea2e871217ffc528e4b59c1b632fb0ba62a40968",
+      "worktree_sha256": "d8ccbf5240ff922b815f5390ea2e871217ffc528e4b59c1b632fb0ba62a40968",
+      "isolated_remote_sha256": "d8ccbf5240ff922b815f5390ea2e871217ffc528e4b59c1b632fb0ba62a40968"
+    },
+    {
+      "path": "src/openpi/training/coverage_sampler.py",
+      "committed_sha256": "66fb3aa20c8a81389284533edb29ec6cdabd3708075364ec97f18cefe53cf2e3",
+      "worktree_sha256": "66fb3aa20c8a81389284533edb29ec6cdabd3708075364ec97f18cefe53cf2e3",
+      "isolated_remote_sha256": "66fb3aa20c8a81389284533edb29ec6cdabd3708075364ec97f18cefe53cf2e3"
+    },
+    {
+      "path": "src/openpi/training/coverage_sampler_test.py",
+      "committed_sha256": "fb889aee941dfbe90b9c1f9614545bfd73a6f619fa1d1028a08762d38c9659f4",
+      "worktree_sha256": "fb889aee941dfbe90b9c1f9614545bfd73a6f619fa1d1028a08762d38c9659f4",
+      "isolated_remote_sha256": "fb889aee941dfbe90b9c1f9614545bfd73a6f619fa1d1028a08762d38c9659f4"
+    },
+    {
+      "path": "src/openpi/training/data_loader.py",
+      "committed_sha256": "fd75c32d5d3f040f8b4e28aacd86dd50259651b5da26fea56cf11680c01464e4",
+      "worktree_sha256": "fd75c32d5d3f040f8b4e28aacd86dd50259651b5da26fea56cf11680c01464e4",
+      "isolated_remote_sha256": "fd75c32d5d3f040f8b4e28aacd86dd50259651b5da26fea56cf11680c01464e4"
+    },
+    {
+      "path": "docs/ego/mint_v3_posttrain_20261023/configure_runs.py",
+      "committed_sha256": "801e1fb31d00b1b881255fff0bb768c43cb2d07f163562399ffd570d04705aac",
+      "worktree_sha256": "801e1fb31d00b1b881255fff0bb768c43cb2d07f163562399ffd570d04705aac",
+      "isolated_remote_sha256": "801e1fb31d00b1b881255fff0bb768c43cb2d07f163562399ffd570d04705aac"
+    },
+    {
+      "path": "docs/ego/mint_v3_posttrain_20261023/export_lerobot.py",
+      "committed_sha256": "318763bd192af703c5fc15566598c15f6cfe68ada98501a8ff52fb8500866f64",
+      "worktree_sha256": "318763bd192af703c5fc15566598c15f6cfe68ada98501a8ff52fb8500866f64",
+      "isolated_remote_sha256": "318763bd192af703c5fc15566598c15f6cfe68ada98501a8ff52fb8500866f64"
+    },
+    {
+      "path": "docs/ego/mint_v3_posttrain_20261023/launch_runs.py",
+      "committed_sha256": "a3aba366fd185c2e8db31fb3d40ca431e1e3514a1b3cce86ad985d583f4dfc56",
+      "worktree_sha256": "a3aba366fd185c2e8db31fb3d40ca431e1e3514a1b3cce86ad985d583f4dfc56",
+      "isolated_remote_sha256": "a3aba366fd185c2e8db31fb3d40ca431e1e3514a1b3cce86ad985d583f4dfc56"
+    },
+    {
+      "path": "docs/ego/mint_v3_posttrain_20261023/prepare_manifest.py",
+      "committed_sha256": "c4215c7afd79867d776d1bc8cc0bd60bcec089f01d69109761846c0049ffe2d0",
+      "worktree_sha256": "c4215c7afd79867d776d1bc8cc0bd60bcec089f01d69109761846c0049ffe2d0",
+      "isolated_remote_sha256": "c4215c7afd79867d776d1bc8cc0bd60bcec089f01d69109761846c0049ffe2d0"
+    },
+    {
+      "path": "docs/ego/mint_v3_posttrain_20261023/run_one.py",
+      "committed_sha256": "53ebec4bd952a8f17b67685b5860cbf7e4e15db794a205bfeb4c223018530cbd",
+      "worktree_sha256": "53ebec4bd952a8f17b67685b5860cbf7e4e15db794a205bfeb4c223018530cbd",
+      "isolated_remote_sha256": "53ebec4bd952a8f17b67685b5860cbf7e4e15db794a205bfeb4c223018530cbd"
+    },
+    {
+      "path": "docs/ego/mint_v3_posttrain_20261023/validate_loader.py",
+      "committed_sha256": "56032e7479e451dbe1d0fc38682bac4d4392677c2b77815299c646fb40b309ac",
+      "worktree_sha256": "56032e7479e451dbe1d0fc38682bac4d4392677c2b77815299c646fb40b309ac",
+      "isolated_remote_sha256": "56032e7479e451dbe1d0fc38682bac4d4392677c2b77815299c646fb40b309ac"
+    },
+    {
+      "path": "docs/ego/mint_v3_posttrain_20261023/validate_model.py",
+      "committed_sha256": "d674425172f7907b9d9621307335743211bda32a4fef7f5e5ef341123dcd1392",
+      "worktree_sha256": "d674425172f7907b9d9621307335743211bda32a4fef7f5e5ef341123dcd1392",
+      "isolated_remote_sha256": "d674425172f7907b9d9621307335743211bda32a4fef7f5e5ef341123dcd1392"
+    },
+    {
+      "path": "docs/ego/mint_v3_posttrain_20261023/verify_checkpoint_delivery.py",
+      "committed_sha256": "e28be74224829cbfd3160869ec016fc7a29437900697d3b4f06ace7a700f42a8",
+      "worktree_sha256": "e28be74224829cbfd3160869ec016fc7a29437900697d3b4f06ace7a700f42a8",
+      "isolated_remote_sha256": "e28be74224829cbfd3160869ec016fc7a29437900697d3b4f06ace7a700f42a8"
+    }
+  ],
+  "source_semantics": "The training repository handles mapped 56D export, loader and sampling. Fingertip geometry and hand retargeting algorithms remain in BrainCo-Dataset.",
+  "data_version_used": "388 approved v3 episodes; train/val/test 345/16/27",
+  "v4_404_candidate_used_by_these_runs": false,
+  "push_performed": false
+}
