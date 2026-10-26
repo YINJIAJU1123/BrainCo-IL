@@ -477,6 +477,7 @@ def _coverage_plan(data_config: _config.DataConfig, batch_size: int, dataset: Da
         ego_ratio=data_config.coverage_ego_ratio, real_ratio=data_config.coverage_real_ratio,
         round_to=data_config.coverage_round_to, rounds=data_config.coverage_rounds,
         batch_size=batch_size, seed=data_config.coverage_seed,
+        ego_repeat=data_config.coverage_ego_repeat,
     )
 
 

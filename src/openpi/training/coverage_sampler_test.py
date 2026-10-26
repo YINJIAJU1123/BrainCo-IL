@@ -32,6 +32,24 @@ class CoverageBatchSamplerTest(unittest.TestCase):
         self.assertEqual(Counter(sum(index >= 1000 for index in batch)
                                  for batch in list(plans[2])[:7]), {4: 3, 5: 4})
 
+    def test_explicit_repeat_preserves_passes_prefix_and_resume(self):
+        import numpy as np
+        plans = [CoverageBatchSampler((70, 65), coverage_index=1, ego_ratio=e,
+                 real_ratio=r, round_to=32, rounds=1, batch_size=16, seed=42,
+                 ego_repeat=True) for e, r in [(1, 1), (3, 1), (5, 2)]]
+        for plan in plans:
+            for start in range(0, plan.ego_count, 70):
+                part = plan.ego_order[start:start + 70]
+                self.assertEqual(len(set(part)), len(part))
+            original = list(plan)
+            plan.set_start_step(3)
+            self.assertEqual(list(plan), original[3:])
+            self.assertEqual(set(plan.real_order), set(range(65)))
+        np.testing.assert_array_equal(plans[0].ego_order, plans[1].ego_order[:96])
+        np.testing.assert_array_equal(plans[2].ego_order, plans[1].ego_order[:240])
+        for p in plans[1:]:
+            np.testing.assert_array_equal(p.real_order, plans[0].real_order)
+
     def test_invalid_quota_rejected(self):
         with self.assertRaisesRegex(ValueError, "Ego quota"):
             CoverageBatchSampler((10, 65), coverage_index=1, ego_ratio=3,

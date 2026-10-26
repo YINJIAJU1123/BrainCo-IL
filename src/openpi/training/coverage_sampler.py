@@ -13,7 +13,7 @@ import numpy as np
 
 class CoverageBatchSampler:
     def __init__(self, lengths: tuple[int, int], *, coverage_index: int, ego_ratio: int,
-                 real_ratio: int, round_to: int, rounds: int, batch_size: int, seed: int):
+                 real_ratio: int, round_to: int, rounds: int, batch_size: int, seed: int, ego_repeat: bool = False):
         if len(lengths) != 2 or coverage_index not in (0, 1):
             raise ValueError("coverage requires exactly two sources and a valid coverage_index")
         if min(*lengths, ego_ratio, real_ratio, round_to, rounds, batch_size) <= 0:
@@ -34,12 +34,15 @@ class CoverageBatchSampler:
         total = self.real_count + self.ego_count
         if total % batch_size:
             raise ValueError("source quotas do not fill whole batches")
-        if self.ego_count > lengths[self.ego_index]:
+        if self.ego_count > lengths[self.ego_index] and not ego_repeat:
             raise ValueError("Ego quota exceeds unique Ego training starts")
         self.steps = total // batch_size
         # Independent seeds make the Ego prefix identical for every ratio.
         ego_rng = np.random.default_rng(seed)
-        self.ego_order = ego_rng.permutation(lengths[self.ego_index])[:self.ego_count]
+        self.ego_order = np.concatenate([
+            ego_rng.permutation(lengths[self.ego_index])
+            for _ in range(math.ceil(self.ego_count / lengths[self.ego_index]))
+        ])[:self.ego_count]
         real_rng = np.random.default_rng(seed + 1)
         real_orders = [real_rng.permutation(lengths[coverage_index]) for _ in range(rounds)]
         real_order = np.concatenate(real_orders)

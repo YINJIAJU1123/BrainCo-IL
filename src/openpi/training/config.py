@@ -126,6 +126,7 @@ class DataConfig:
     coverage_round_to: int = 32
     coverage_rounds: int = 1
     coverage_seed: int = 42
+    coverage_ego_repeat: bool = False  # Explicit shuffled passes for a smaller Ego pool.
 
 
 class GroupFactory(Protocol):
