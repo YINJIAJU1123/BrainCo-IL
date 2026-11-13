@@ -1,4 +1,4 @@
-"""BrainCo PI0/PI0.5 与 ACT 策略的 JAX 训练入口.
+"""BrainCo PI0/PI0.5、ACT 与 Diffusion Policy 策略的 JAX 训练入口.
 
 主调用链:
   config.cli -> main -> data_loader.create_data_loader
@@ -7,7 +7,7 @@
              -> checkpoints.save_state
 
 模型差异封装在 BaseModel.compute_loss 之后,因此这套训练循环不需要为
-PI0.5 和 ACT 分别编写分支.
+各个模型分别编写分支.
 """
 
 import dataclasses
@@ -43,6 +43,7 @@ import swanlab
 import tqdm_loggable.auto as tqdm
 
 import openpi.deploy.contract as _deploy_contract
+from openpi.deploy.export_checkpoint import export_checkpoint
 import openpi.models.model as _model
 import openpi.shared.array_typing as at
 import openpi.shared.nnx_utils as nnx_utils
@@ -131,7 +132,7 @@ def init_train_state(
 
     def init(rng: at.KeyArrayLike, partial_params: at.Params | None = None) -> training_utils.TrainState:
         rng, model_rng = jax.random.split(rng)
-        # ModelConfig.create 是选择 PI0.5 或 ACT 具体网络的边界.
+        # ModelConfig.create 是选择具体策略网络的边界.
         model = config.model.create(model_rng)
 
         # 将预训练权重子集写入刚创建的模型.
@@ -277,7 +278,8 @@ def main(config: _config.TrainConfig):
     )
     if jax.process_index() == 0:
         _config_io.save_train_config(config, config.checkpoint_dir)
-        _deploy_contract.save_policy_contract(config, config.checkpoint_dir)
+        if not isinstance(config.data, _config.FakeDataConfig):
+            _deploy_contract.save_policy_contract(config, config.checkpoint_dir)
     init_swanlab(config, resuming=resuming, enabled=config.wandb_enabled)
 
     # DataLoader 在 CPU 上通过 LeRobot/PyTorch 解码并执行配置好的 transforms,
@@ -309,6 +311,10 @@ def main(config: _config.TrainConfig):
 
     if resuming:
         train_state = _checkpoints.restore_state(checkpoint_manager, train_state, data_loader)
+        # Orbax may restore host NumPy leaves. Give the donated train step owned
+        # device buffers; CPU zero-copy aliases can otherwise outlive their host
+        # owners and corrupt the updated online/EMA weights after resuming.
+        train_state = jax.device_put(train_state, train_state_sharding, may_alias=False)
 
     # 将完整的前向、反向和优化器更新编译为一个 XLA 程序.
     # donate_argnums 允许 JAX 原地复用旧 TrainState 的缓冲区.
@@ -316,7 +322,9 @@ def main(config: _config.TrainConfig):
         functools.partial(train_step, config),
         in_shardings=(replicated_sharding, train_state_sharding, data_sharding),
         out_shardings=(train_state_sharding, replicated_sharding),
-        donate_argnums=(1,),
+        # JAX 0.5.3 CPU donation can leave resumed Orbax buffers dangling.
+        # Keep GPU donation for production training and use owned CPU outputs.
+        donate_argnums=() if jax.default_backend() == "cpu" else (1,),
     )
 
     start_step = int(train_state.step)
@@ -351,8 +359,12 @@ def main(config: _config.TrainConfig):
             _checkpoints.save_state(checkpoint_manager, train_state, data_loader, step)
             checkpoint_manager.wait_until_finished()
             if jax.process_index() == 0:
-                _config_io.save_train_config(config, config.checkpoint_dir / str(step))
-                _deploy_contract.save_policy_contract(config, config.checkpoint_dir / str(step))
+                if isinstance(config.data, _config.FakeDataConfig):
+                    # Synthetic debug runs have no named hardware metadata or
+                    # normalization assets and are not deployment checkpoints.
+                    _config_io.save_train_config(config, config.checkpoint_dir / str(step))
+                else:
+                    export_checkpoint(config, config.checkpoint_dir / str(step))
 
     logging.info("Waiting for checkpoint manager to finish")
     checkpoint_manager.wait_until_finished()

@@ -62,7 +62,8 @@ class BrainCoPolicyIOConfig:
     def validate(self, model_action_dim: int) -> None:
         _validate_unique_groups("state_groups", self.state_groups)
         _validate_unique_groups("action_groups", self.action_groups)
-        _validate_unique_groups("delta_action_groups", self.delta_action_groups)
+        if self.delta_action_groups:
+            _validate_unique_groups("delta_action_groups", self.delta_action_groups)
         unknown_delta_groups = set(self.delta_action_groups) - set(self.action_groups)
         if unknown_delta_groups:
             raise ValueError(
@@ -125,11 +126,11 @@ class SelectPolicyFeatures(transforms.DataTransformFn):
 
     state_indices: tuple[int, ...]
     action_indices: tuple[int, ...]
+    force_selection: bool = False
 
-    @staticmethod
-    def _select(value: np.ndarray, indices: tuple[int, ...], key: str) -> np.ndarray:
+    def _select(self, value: np.ndarray, indices: tuple[int, ...], key: str) -> np.ndarray:
         value = np.asarray(value)
-        if value.shape[-1] == len(indices):
+        if not self.force_selection and value.shape[-1] == len(indices):
             return value
         if not indices or value.shape[-1] <= max(indices):
             raise ValueError(

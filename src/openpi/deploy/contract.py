@@ -9,12 +9,18 @@ from __future__ import annotations
 from collections.abc import Iterable
 import hashlib
 import json
+import math
 from pathlib import Path
 from typing import Any
 
 CONTRACT_FILENAME = "policy_contract.json"
 PROTOCOL_VERSION = 1
 _GROUP_ORDER = ("left_arm", "right_arm", "left_hand", "right_hand")
+_CAMERAS = (
+    "observation.images.cam_head",
+    "observation.images.cam_left_wrist",
+    "observation.images.cam_right_wrist",
+)
 
 
 def resolve_dataset_interface(dataset_roots: Iterable[str | Path], groups: Iterable[str]) -> dict[str, Any]:
@@ -27,6 +33,8 @@ def resolve_dataset_interface(dataset_roots: Iterable[str | Path], groups: Itera
     unknown = sorted(set(selected_groups) - set(_GROUP_ORDER))
     if unknown:
         raise ValueError(f"unsupported policy groups: {unknown}")
+    if selected_groups != tuple(group for group in _GROUP_ORDER if group in selected_groups):
+        raise ValueError(f"policy groups must be unique and ordered as {_GROUP_ORDER}")
 
     resolved = [_read_dataset_interface(root, selected_groups) for root in roots]
     reference = resolved[0]
@@ -60,6 +68,10 @@ def build_policy_contract(
             f"resolved action dim {len(interface['action_names'])} does not match model "
             f"action_dim {train_config.model.action_dim}"
         )
+    for kind in ("state", "action"):
+        indices = getattr(policy_io, f"dataset_{kind}_indices", None)
+        if indices is not None and tuple(indices) != tuple(interface[f"{kind}_indices"]):
+            raise ValueError(f"dataset {kind} names/indices changed since training config resolution")
 
     joint_groups = {
         group: [name for name in interface["state_names"] if _joint_group(name) == group]
@@ -162,11 +174,17 @@ def _read_dataset_interface(root: Path, groups: tuple[str, ...]) -> dict[str, An
     if missing:
         raise ValueError(f"LeRobot metadata {info_path} has no joints for groups {missing}")
     cameras = [str(key) for key in features if str(key).startswith("observation.images.")]
-    if not cameras:
-        raise ValueError(f"LeRobot metadata has no observation.images.* features: {info_path}")
+    missing_cameras = set(_CAMERAS) - set(cameras)
+    if missing_cameras:
+        raise ValueError(f"BrainCo models require cameras {sorted(missing_cameras)}: {info_path}")
+    # Additional dataset views are not consumed by the current three-camera models.
+    cameras = list(_CAMERAS)
+    fps = float(info.get("fps", 0.0))
+    if not math.isfinite(fps) or fps <= 0:
+        raise ValueError(f"LeRobot fps must be positive and finite: {info_path}")
     return {
         "robot_type": str(info.get("robot_type", "")),
-        "fps": float(info.get("fps", 0.0)),
+        "fps": fps,
         "state_dim": len(state_all),
         "action_dim": len(action_all),
         "state_indices": state_indices,
@@ -191,9 +209,9 @@ def _feature_names(feature: Any, key: str, info_path: Path) -> list[str]:
 
 
 def _joint_group(name: str) -> str | None:
-    if name.startswith("left_arm_joint"):
+    if name.startswith(("left_arm_joint", "revoarm_left_joint")):
         return "left_arm"
-    if name.startswith("right_arm_joint"):
+    if name.startswith(("right_arm_joint", "revoarm_right_joint")):
         return "right_arm"
     if name.startswith("left_") and name.endswith("_joint"):
         return "left_hand"

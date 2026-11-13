@@ -48,7 +48,7 @@ def serve(checkpoint: str | Path, *, protocol_in=None, protocol_out=None) -> Non
         message_type = str(message.get("type", "")).upper()
         try:
             if message_type == "DESCRIBE":
-                strategies = list(contract.get("inference_strategies", ["standard", "rtc"]))
+                strategies = list(contract.get("inference_strategies", ["standard"]))
                 send_frame(
                     protocol_out,
                     {
@@ -71,16 +71,17 @@ def serve(checkpoint: str | Path, *, protocol_in=None, protocol_out=None) -> Non
 
                     config_io.validate_checkpoint_id(checkpoint, contract["checkpoint_id"])
                     train_config = config_io.load_train_config(checkpoint)
-                    policy = policy_config.create_trained_policy(
+                    candidate_policy = policy_config.create_trained_policy(
                         train_config,
                         checkpoint,
                         repack_transforms=transforms.Group(inputs=(_ValidateImages(),)),
                         sample_kwargs=_sample_kwargs(train_config),
                     )
                     inference_strategy, rtc_config, rtc_initial_delay_steps = _parse_inference_config(
-                        message.get("inference_config"), policy, train_config
+                        message.get("inference_config"), candidate_policy, train_config
                     )
-                    _warmup_if_requested(policy, contract, message)
+                    _warmup_if_requested(candidate_policy, contract, message)
+                    policy = candidate_policy
                 send_frame(
                     protocol_out,
                     {
@@ -190,6 +191,10 @@ def _build_policy_observation(observation: dict[str, Any], contract: dict[str, A
 def _group_actions(actions: np.ndarray, contract: dict[str, Any]) -> dict[str, np.ndarray]:
     if actions.ndim != 2:
         raise ValueError(f"policy actions must be [steps, dim], got {actions.shape}")
+    if actions.shape[0] != int(contract["chunk_steps"]):
+        raise ValueError(f"policy chunk length {actions.shape[0]} differs from contract {contract['chunk_steps']}")
+    if not np.all(np.isfinite(actions)):
+        raise ValueError("policy actions contain non-finite values")
     groups: dict[str, np.ndarray] = {}
     offset = 0
     for group, names in contract["output_joint_groups"].items():

@@ -26,7 +26,9 @@ def create_trained_policy(
     checkpoint_dir = download.maybe_download(str(checkpoint_dir))
 
     logging.info("Loading model...")
-    model = train_config.model.load(_model.restore_params(checkpoint_dir / "params", dtype=jnp.bfloat16))
+    # Preserve diffusion epsilon/scheduler precision; legacy PI/ACT loading is unchanged.
+    dtype = jnp.float32 if train_config.model.model_type == _model.ModelType.DIFFUSION else jnp.bfloat16
+    model = train_config.model.load(_model.restore_params(checkpoint_dir / "params", dtype=dtype))
     data_config = train_config.data.create(train_config.assets_dirs, train_config.model)
     if norm_stats is None:
         if data_config.asset_id is None:
