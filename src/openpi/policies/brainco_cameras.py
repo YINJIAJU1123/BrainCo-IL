@@ -10,7 +10,7 @@ _CAMERA_ALIASES = {
 }
 
 
-def resolve_camera_bindings(cameras: Iterable[str]) -> dict[str, str]:
+def resolve_camera_bindings(cameras: Iterable[str], *, allow_extra: bool = False) -> dict[str, str]:
     """Bind each model view to exactly one metadata key, rejecting ambiguity."""
     available = set(cameras)
     bindings = {}
@@ -20,6 +20,6 @@ def resolve_camera_bindings(cameras: Iterable[str]) -> dict[str, str]:
             raise ValueError(f"expected exactly one camera for {model_key} from {aliases}, got {sorted(matches)}")
         bindings[model_key] = matches.pop()
     unsupported = available - set(bindings.values())
-    if unsupported:
+    if unsupported and not allow_extra:
         raise ValueError(f"unsupported BrainCo cameras: {sorted(unsupported)}")
     return bindings

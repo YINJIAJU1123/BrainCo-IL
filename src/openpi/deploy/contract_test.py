@@ -158,7 +158,9 @@ def test_inferencer_builds_training_transform_input_keys(tmp_path):
 
 
 @pytest.mark.parametrize("recorder_names", [False, True])
-def test_camera_names_round_trip_and_preserve_view_identity(tmp_path, recorder_names):
+@pytest.mark.parametrize("base", ["pi05", "act", "diffusion"])
+@pytest.mark.parametrize("extra_camera", [False, True])
+def test_camera_names_round_trip_and_preserve_view_identity(tmp_path, recorder_names, base, extra_camera):
     dataset = tmp_path / "dataset"
     _dataset(dataset)
     if recorder_names:
@@ -167,14 +169,20 @@ def test_camera_names_round_trip_and_preserve_view_identity(tmp_path, recorder_n
         for old, new in [("cam_head", "head"), ("cam_left_wrist", "wrist_left"), ("cam_right_wrist", "wrist_right")]:
             info["features"][f"observation.images.{new}"] = info["features"].pop(f"observation.images.{old}")
         info_path.write_text(json.dumps(info))
-    experiment = tmp_path / "act.yaml"
-    _experiment(experiment, dataset, "act")
+    info_path = dataset / "meta" / "info.json"
+    info = json.loads(info_path.read_text())
+    expected_cameras = list(info["features"])[2:]
+    if extra_camera:
+        info["features"]["observation.images.overhead"] = {"dtype": "video", "shape": [8, 8, 3]}
+        info_path.write_text(json.dumps(info))
+    experiment = tmp_path / f"{base}.yaml"
+    _experiment(experiment, dataset, base)
     config = config_io.load_train_config(experiment)
     payload = contract.build_policy_contract(config, "test")
     config_io.save_train_config(config, tmp_path / "checkpoint")
     restored = config_io.load_train_config(tmp_path / "checkpoint")
     cameras = payload["required_cameras"]
-    assert cameras == list(json.loads((dataset / "meta" / "info.json").read_text())["features"])[2:]
+    assert cameras == expected_cameras
     images = {key: np.full((8, 8, 3), value, np.uint8) for value, key in enumerate(cameras, 1)}
     observation = {
         "joint_groups": {
@@ -186,6 +194,7 @@ def test_camera_names_round_trip_and_preserve_view_identity(tmp_path, recorder_n
     }
     deployed = policy_inferencer._build_policy_observation(observation, payload)  # noqa: SLF001
     data = restored.data.create(restored.assets_dirs, restored.model)
+    assert set(data.dataset_feature_keys) == {"observation.state", "action", *expected_cameras}
     sample = {**images, "observation.state": np.zeros(26), "action": np.zeros((12, 26)), "prompt": "test"}
     repacked = data.repack_transforms.inputs[0](sample)
     for value, key in enumerate(["observation/image", "observation/left_wrist_image", "observation/right_wrist_image"], 1):

@@ -13,14 +13,11 @@ import math
 from pathlib import Path
 from typing import Any
 
+from openpi.policies.brainco_cameras import resolve_camera_bindings
+
 CONTRACT_FILENAME = "policy_contract.json"
 PROTOCOL_VERSION = 1
 _GROUP_ORDER = ("left_arm", "right_arm", "left_hand", "right_hand")
-_CAMERAS = (
-    "observation.images.cam_head",
-    "observation.images.cam_left_wrist",
-    "observation.images.cam_right_wrist",
-)
 
 
 def resolve_dataset_interface(dataset_roots: Iterable[str | Path], groups: Iterable[str]) -> dict[str, Any]:
@@ -174,11 +171,13 @@ def _read_dataset_interface(root: Path, groups: tuple[str, ...]) -> dict[str, An
     if missing:
         raise ValueError(f"LeRobot metadata {info_path} has no joints for groups {missing}")
     cameras = [str(key) for key in features if str(key).startswith("observation.images.")]
-    missing_cameras = set(_CAMERAS) - set(cameras)
-    if missing_cameras:
-        raise ValueError(f"BrainCo models require cameras {sorted(missing_cameras)}: {info_path}")
     # Additional dataset views are not consumed by the current three-camera models.
-    cameras = list(_CAMERAS)
+    # Resolve aliases before selecting views so recorder names and ambiguous
+    # duplicate views behave identically in training and deployment.
+    try:
+        cameras = list(resolve_camera_bindings(cameras, allow_extra=True).values())
+    except ValueError as exc:
+        raise ValueError(f"invalid BrainCo cameras in {info_path}: {exc}") from exc
     fps = float(info.get("fps", 0.0))
     if not math.isfinite(fps) or fps <= 0:
         raise ValueError(f"LeRobot fps must be positive and finite: {info_path}")
