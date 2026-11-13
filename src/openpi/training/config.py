@@ -155,6 +155,14 @@ class ModelTransformFactory(GroupFactory):
                         _transforms.PadStatesAndActions(model_config.action_dim),
                     ],
                 )
+            case _model.ModelType.DIFFUSION:
+                return _transforms.Group(
+                    inputs=[
+                        _transforms.ResizeImages(model_config.image_size, model_config.image_size),
+                        _transforms.DropPrompt(),
+                        _transforms.PadStatesAndActions(model_config.action_dim),
+                    ],
+                )
             case _model.ModelType.ACT:
                 # ACT 不包含语言/VLM 模块,因此不执行 prompt tokenization.
                 # 它只需要缩放图像,并将 state/actions padding 到 action_dim.
@@ -266,6 +274,22 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
 
         input_transforms = []
         if self.policy_io.dataset_state_indices is not None:
+            # Dataset vectors may have the same width but a different group
+            # order. Force the metadata permutation at the dataset-only repack
+            # boundary; named inference already supplies compact model order.
+            repack_transform = repack_transform.push(
+                inputs=[
+                    brainco_policy.SelectPolicyFeatures(
+                        state_indices=self.policy_io.dataset_state_indices,
+                        action_indices=(
+                            self.policy_io.dataset_action_indices
+                            if self.policy_io.dataset_action_indices is not None
+                            else self.policy_io.dataset_state_indices
+                        ),
+                        force_selection=True,
+                    )
+                ],
+            )
             input_transforms.append(
                 brainco_policy.SelectPolicyFeatures(
                     state_indices=self.policy_io.dataset_state_indices,

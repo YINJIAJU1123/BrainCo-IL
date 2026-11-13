@@ -1,7 +1,7 @@
-"""PI0.5、ACT 和策略加载共享的模型无关 JAX 接口.
+"""PI0.5、ACT、Diffusion Policy 和策略加载共享的模型无关 JAX 接口.
 
 训练代码只依赖 BaseModel.compute_loss,推理代码只依赖
-BaseModel.sample_actions.模型专属实现保留在 pi0.py 和 act.py 中,
+BaseModel.sample_actions.模型专属实现保留在各自模型模块中,
 Observation 则定义它们共同的结构化输入.
 """
 
@@ -37,6 +37,7 @@ class ModelType(enum.Enum):
     PI0 = "pi0"
     PI05 = "pi05"
     ACT = "act"
+    DIFFUSION = "diffusion"
 
 
 # 模型固定期望以下三个相机视角.
@@ -224,9 +225,9 @@ class BaseModelConfig(abc.ABC):
         """重建配置指定的网络图,并写入从 checkpoint 恢复的参数叶子."""
         model = nnx.eval_shape(self.create, jax.random.key(0))
         graphdef, state = nnx.split(model)
-        if remove_extra_params:
-            params = ocp.transform_utils.intersect_trees(state.to_pure_dict(), params)
-        at.check_pytree_equality(expected=state.to_pure_dict(), got=params, check_shapes=True, check_dtypes=False)
+        expected = state.to_pure_dict()
+        params = _align_checkpoint_params(expected, params, remove_extra_params=remove_extra_params)
+        at.check_pytree_equality(expected=expected, got=params, check_shapes=True, check_dtypes=False)
         state.replace_by_pure_dict(params)
         return nnx.merge(graphdef, state)
 
@@ -241,6 +242,31 @@ class BaseModelConfig(abc.ABC):
     def fake_act(self, batch_size: int = 1) -> Actions:
         _, action_spec = self.inputs_spec(batch_size=batch_size)
         return jax.tree.map(lambda x: jnp.ones(x.shape, x.dtype), action_spec)
+
+
+def _align_checkpoint_params(expected, restored, *, remove_extra_params: bool):
+    """Recover NNX integer list keys and parameterless None leaves after Orbax.
+
+    Orbax metadata represents dictionary keys as strings. Intersecting before
+    recovering integer keys drops entire CNN/U-Net/ACT layer lists. Missing
+    actual weights remain missing so the strict shape/tree check still fails.
+    """
+    if not isinstance(expected, dict) or not isinstance(restored, dict):
+        return restored
+    result = {}
+    consumed = set()
+    for key, value in expected.items():
+        source_key = key if key in restored else str(key)
+        if source_key in restored:
+            consumed.add(source_key)
+            result[key] = _align_checkpoint_params(
+                value, restored[source_key], remove_extra_params=remove_extra_params
+            )
+        elif value is None:
+            result[key] = None
+    if not remove_extra_params:
+        result.update({key: value for key, value in restored.items() if key not in consumed})
+    return result
 
 
 @dataclasses.dataclass

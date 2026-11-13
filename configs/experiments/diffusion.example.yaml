@@ -1,0 +1,29 @@
+# Human-authored experiment; exact joint names are resolved from LeRobot metadata.
+schema_version: 1
+base: diffusion
+
+experiment:
+  name: diffusion_revotron_revo3_56d_ah32
+  dataset: /path/to/lerobot_v2.1_dataset
+  project_name: imitation
+
+policy:
+  groups: [left_arm, right_arm, left_hand, right_hand]
+  action_horizon: 32
+
+model:
+  n_obs_steps: 1
+  down_dims: [256, 512, 1024]
+  num_train_timesteps: 100
+  num_inference_steps: 100
+  sampler: ddpm # Set ddim and e.g. 10 inference steps before training for faster inference.
+
+training:
+  batch_size: 16
+  num_workers: 8
+  num_steps: 20000
+  warmup_steps: 500
+  peak_lr: 0.0001
+  ema_decay: 0.999
+  save_interval: 4000
+  keep_period: 4000

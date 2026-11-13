@@ -17,6 +17,7 @@ import yaml
 from openpi.deploy.contract import checkpoint_id_for
 from openpi.deploy.contract import resolve_dataset_interface
 from openpi.models import act_config
+from openpi.models import diffusion_config
 from openpi.models import pi0_config
 from openpi.policies import brainco_policy
 from openpi.training import config as training_config
@@ -212,8 +213,8 @@ def _from_experiment_payload(payload: dict[str, Any], path: Path) -> training_co
     if int(payload.get("schema_version", CONFIG_SCHEMA_VERSION)) != CONFIG_SCHEMA_VERSION:
         raise RuntimeError(f"unsupported experiment schema in {path}")
     base = str(payload.get("base", "")).strip().lower()
-    if base not in ("pi05", "act"):
-        raise ValueError(f"experiment base must be 'pi05' or 'act', got {base!r} ({path})")
+    if base not in ("pi05", "act", "diffusion"):
+        raise ValueError(f"experiment base must be 'pi05', 'act' or 'diffusion', got {base!r} ({path})")
 
     experiment = dict(payload.get("experiment", {}) or {})
     policy = dict(payload.get("policy", {}) or {})
@@ -257,7 +258,8 @@ def _from_experiment_payload(payload: dict[str, Any], path: Path) -> training_co
             decay_lr=float(training.pop("decay_lr", 5e-6)),
         )
     else:
-        model = act_config.ACTConfig(
+        model_cls = diffusion_config.DiffusionPolicyConfig if base == "diffusion" else act_config.ACTConfig
+        model = model_cls(
             action_dim=action_dim,
             action_horizon=action_horizon,
             **model_overrides,
@@ -315,11 +317,15 @@ def _from_experiment_payload(payload: dict[str, Any], path: Path) -> training_co
         "resume",
         "wandb_enabled",
         "fsdp_devices",
+        "ema_decay",
     }
     unknown = sorted(set(training) - allowed_training - {"num_steps", "checkpoint_base_dir", "assets_base_dir"})
     if unknown:
         raise ValueError(f"unknown concise training fields: {unknown} ({path})")
     train_kwargs = {key: training[key] for key in allowed_training if key in training}
+    train_kwargs.setdefault("ema_decay", 0.999 if base == "diffusion" else None)
+    if train_kwargs["ema_decay"] is not None and not 0 <= train_kwargs["ema_decay"] < 1:
+        raise ValueError("ema_decay must be null or in [0, 1)")
     return training_config.TrainConfig(
         name=name,
         project_name=str(experiment.get("project_name", "imitation")),
@@ -327,7 +333,10 @@ def _from_experiment_payload(payload: dict[str, Any], path: Path) -> training_co
         model=model,
         weight_loader=weight_loader,
         lr_schedule=lr_schedule,
-        ema_decay=None,
+        optimizer=(
+            optimizer.AdamW(b1=0.95, b2=0.999, weight_decay=1e-6)
+            if base == "diffusion" else optimizer.AdamW()
+        ),
         data=data,
         checkpoint_base_dir=str(training.get("checkpoint_base_dir", "./checkpoints")),
         assets_base_dir=str(training.get("assets_base_dir", "./assets")),
