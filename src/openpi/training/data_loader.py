@@ -15,6 +15,7 @@ import os
 import typing
 from typing import Protocol, SupportsIndex, TypeVar
 
+import datasets
 import jax
 import jax.numpy as jnp
 import lerobot.common.datasets.lerobot_dataset as lerobot_dataset
@@ -70,12 +71,55 @@ def _create_lerobot_dataset_compat(*args, **kwargs) -> lerobot_dataset.LeRobotDa
     return dataset_cls(*args, **kwargs)
 
 
-class _NormStatsLeRobotDataset(lerobot_dataset.LeRobotDataset):
+class _PolicyLeRobotDataset(lerobot_dataset.LeRobotDataset):
+    """Project model inputs before LeRobot's tensor conversion and time checks.
+
+    The source metadata and LeRobot's temporal queries/padding stay unchanged.
+    Unused sensors are neither read from Parquet nor decoded as videos.
+    """
+
+    def __init__(self, *args, dataset_feature_keys: Sequence[str] | None = None, **kwargs):
+        self._dataset_feature_keys = None if dataset_feature_keys is None else frozenset(dataset_feature_keys)
+        super().__init__(*args, **kwargs)
+
+    def load_hf_dataset(self) -> datasets.Dataset:
+        if self._dataset_feature_keys is None:
+            return super().load_hf_dataset()
+        missing = self._dataset_feature_keys - self.meta.features.keys()
+        if missing:
+            raise ValueError(f"dataset is missing required model features: {sorted(missing)}")
+        required = self._dataset_feature_keys | {"timestamp", "episode_index", "frame_index", "index", "task_index"}
+        columns = [
+            key for key, feature in self.meta.features.items()
+            if key in required and feature["dtype"] != "video"
+        ]
+        if self.episodes is None:
+            source = {"data_dir": str(self.root / "data")}
+        else:
+            source = {"data_files": [str(self.root / self.meta.get_data_file_path(ep)) for ep in self.episodes]}
+        dataset = datasets.load_dataset("parquet", split="train", columns=columns, **source)
+        dataset.set_transform(lerobot_dataset.hf_transform_to_torch)
+        return dataset
+
+    def _selected_video_queries(self, query_timestamps: dict[str, list[float]]) -> dict[str, list[float]]:
+        keys = getattr(self, "_dataset_feature_keys", None)
+        if keys is None:
+            return query_timestamps
+        return {key: timestamps for key, timestamps in query_timestamps.items() if key in keys}
+
+    def _query_videos(self, query_timestamps: dict[str, list[float]], ep_idx: int) -> dict[str, torch.Tensor]:
+        return super()._query_videos(self._selected_video_queries(query_timestamps), ep_idx)
+
+
+class _NormStatsLeRobotDataset(_PolicyLeRobotDataset):
     """归一化统计专用数据集:保留时序查询,但不解码无关的视频帧."""
 
     def _query_videos(self, query_timestamps: dict[str, list[float]], ep_idx: int) -> dict[str, torch.Tensor]:
         del ep_idx
-        return {key: torch.zeros((3, 1, 1), dtype=torch.float32) for key in query_timestamps}
+        return {
+            key: torch.zeros((3, 1, 1), dtype=torch.float32)
+            for key in self._selected_video_queries(query_timestamps)
+        }
 
 
 class Dataset(Protocol[T_co]):
@@ -155,11 +199,12 @@ def _create_sequence_dataset(
     delta_timestamps = {
         key: [t / dataset_meta.fps for t in range(action_horizon)] for key in data_config.action_sequence_keys
     }
-    dataset_cls = lerobot_dataset.LeRobotDataset if decode_videos else _NormStatsLeRobotDataset
+    dataset_cls = _PolicyLeRobotDataset if decode_videos else _NormStatsLeRobotDataset
     return _create_lerobot_dataset_compat(
         repo_id,
         delta_timestamps=delta_timestamps,
         dataset_cls=dataset_cls,
+        dataset_feature_keys=data_config.dataset_feature_keys,
     )
 
 

@@ -107,6 +107,10 @@ class DataConfig:
     # action_horizon 决定;如果 LeRobot 数据集使用其他动作键,需要修改此项.
     action_sequence_keys: Sequence[str] = ("actions",)
 
+    # Raw model inputs to project from LeRobot; None preserves generic datasets.
+    # Loader bookkeeping columns are retained separately.
+    dataset_feature_keys: Sequence[str] | None = None
+
     # 为 true 时,使用 LeRobot 数据集 task 生成 prompt.
     prompt_from_task: bool = False
 
@@ -311,6 +315,13 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
             data_transforms=data_transforms,
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
+            dataset_feature_keys=(
+                "observation.state",
+                *self.action_sequence_keys,
+                self.head_camera_key,
+                self.left_wrist_camera_key,
+                self.right_wrist_camera_key,
+            ),
         )
 
 
