@@ -15,6 +15,7 @@ import numpy as np
 from openpi.deploy.contract import load_policy_contract
 from openpi.deploy.protocol import recv_frame
 from openpi.deploy.protocol import send_frame
+from openpi.policies.brainco_cameras import resolve_camera_bindings
 
 
 class _ValidateImages:
@@ -178,18 +179,10 @@ def _build_policy_observation(observation: dict[str, Any], contract: dict[str, A
         "observation/state": np.concatenate(parts).astype(np.float32, copy=False),
         "prompt": str(observation.get("task", "")),
     }
-    camera_bindings = {
-        "observation.images.cam_head": "observation/image",
-        "observation.images.cam_left_wrist": "observation/left_wrist_image",
-        "observation.images.cam_right_wrist": "observation/right_wrist_image",
-    }
-    for key in contract["required_cameras"]:
+    camera_bindings = resolve_camera_bindings(contract["required_cameras"])
+    for policy_key, key in camera_bindings.items():
         if key not in images:
             raise ValueError(f"observation missing camera {key!r}")
-        try:
-            policy_key = camera_bindings[key]
-        except KeyError as exc:
-            raise ValueError(f"BrainCo inferencer does not support camera key {key!r}") from exc
         result[policy_key] = np.asarray(images[key])
     return result
 

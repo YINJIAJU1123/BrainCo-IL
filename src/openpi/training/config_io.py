@@ -19,6 +19,7 @@ from openpi.deploy.contract import resolve_dataset_interface
 from openpi.models import act_config
 from openpi.models import pi0_config
 from openpi.policies import brainco_policy
+from openpi.policies.brainco_cameras import resolve_camera_bindings
 from openpi.training import config as training_config
 from openpi.training import optimizer
 from openpi.training import weight_loaders
@@ -233,6 +234,7 @@ def _from_experiment_payload(payload: dict[str, Any], path: Path) -> training_co
             f"unknown concise policy fields: {unknown_policy} ({path}); deployment actions are always absolute"
         )
     interface = resolve_dataset_interface(dataset_roots, groups)
+    cameras = resolve_camera_bindings(interface["cameras"])
     action_dim = len(interface["action_names"])
     action_horizon = int(policy.get("action_horizon", 32))
 
@@ -299,7 +301,9 @@ def _from_experiment_payload(payload: dict[str, Any], path: Path) -> training_co
         # The experiment schema and deployment protocol are always absolute.
         extra_delta_transform=True,
         policy_io=policy_io,
-        head_camera_key=_head_camera(interface["cameras"]),
+        head_camera_key=cameras["observation/image"],
+        left_wrist_camera_key=cameras["observation/left_wrist_image"],
+        right_wrist_camera_key=cameras["observation/right_wrist_image"],
         revo3_eef_joint_hand_to_joint_hand=False,
         action_sequence_keys=("action",),
     )
@@ -334,13 +338,6 @@ def _from_experiment_payload(payload: dict[str, Any], path: Path) -> training_co
         num_train_steps=int(training.get("num_steps", 30_000)),
         **train_kwargs,
     )
-
-
-def _head_camera(cameras: list[str]) -> str:
-    for key in cameras:
-        if key.endswith(".cam_head"):
-            return key
-    raise ValueError(f"dataset must provide observation.images.cam_head, got {cameras}")
 
 
 def _import_class(class_path: str) -> type:

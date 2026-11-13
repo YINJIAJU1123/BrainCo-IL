@@ -241,6 +241,8 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
     arm_dof: int = 7
     hand_dof: int = 21
     head_camera_key: str = "observation.images.stereo_right"
+    left_wrist_camera_key: str = "observation.images.cam_left_wrist"
+    right_wrist_camera_key: str = "observation.images.cam_right_wrist"
     revo3_eef_joint_hand_to_joint_hand: bool = False
     # 原始数据集中的 action 键名;LeRobot loader 会在 repack transform 前使用.
     action_sequence_keys: Sequence[str] = ("action",)
@@ -254,8 +256,8 @@ class LeRobotBrainCoDataConfig(DataConfigFactory):
                 _transforms.RepackTransform(
                     {
                         "observation/image": self.head_camera_key,
-                        "observation/left_wrist_image": "observation.images.cam_left_wrist",
-                        "observation/right_wrist_image": "observation.images.cam_right_wrist",
+                        "observation/left_wrist_image": self.left_wrist_camera_key,
+                        "observation/right_wrist_image": self.right_wrist_camera_key,
                         "observation/state": "observation.state",
                         "actions": "action",
                         "prompt": "prompt",

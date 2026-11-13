@@ -155,3 +155,56 @@ def test_inferencer_builds_training_transform_input_keys(tmp_path):
     assert result["observation/image"].shape == (8, 8, 3)
     assert result["observation/left_wrist_image"].shape == (8, 8, 3)
     assert result["observation/right_wrist_image"].shape == (8, 8, 3)
+
+
+@pytest.mark.parametrize("recorder_names", [False, True])
+def test_camera_names_round_trip_and_preserve_view_identity(tmp_path, recorder_names):
+    dataset = tmp_path / "dataset"
+    _dataset(dataset)
+    if recorder_names:
+        info_path = dataset / "meta" / "info.json"
+        info = json.loads(info_path.read_text())
+        for old, new in [("cam_head", "head"), ("cam_left_wrist", "wrist_left"), ("cam_right_wrist", "wrist_right")]:
+            info["features"][f"observation.images.{new}"] = info["features"].pop(f"observation.images.{old}")
+        info_path.write_text(json.dumps(info))
+    experiment = tmp_path / "act.yaml"
+    _experiment(experiment, dataset, "act")
+    config = config_io.load_train_config(experiment)
+    payload = contract.build_policy_contract(config, "test")
+    config_io.save_train_config(config, tmp_path / "checkpoint")
+    restored = config_io.load_train_config(tmp_path / "checkpoint")
+    cameras = payload["required_cameras"]
+    assert cameras == list(json.loads((dataset / "meta" / "info.json").read_text())["features"])[2:]
+    images = {key: np.full((8, 8, 3), value, np.uint8) for value, key in enumerate(cameras, 1)}
+    observation = {
+        "joint_groups": {
+            group: {"names": names, "positions": np.zeros(len(names), np.float32)}
+            for group, names in payload["required_joint_groups"].items()
+        },
+        "images": images,
+        "task": "test",
+    }
+    deployed = policy_inferencer._build_policy_observation(observation, payload)  # noqa: SLF001
+    data = restored.data.create(restored.assets_dirs, restored.model)
+    sample = {**images, "observation.state": np.zeros(26), "action": np.zeros((12, 26)), "prompt": "test"}
+    repacked = data.repack_transforms.inputs[0](sample)
+    for value, key in enumerate(["observation/image", "observation/left_wrist_image", "observation/right_wrist_image"], 1):
+        np.testing.assert_array_equal(repacked[key], np.full((8, 8, 3), value, np.uint8))
+        np.testing.assert_array_equal(deployed[key], repacked[key])
+
+
+@pytest.mark.parametrize("problem", ["missing", "ambiguous"])
+def test_camera_metadata_fails_before_training(tmp_path, problem):
+    dataset = tmp_path / "dataset"
+    _dataset(dataset)
+    path = dataset / "meta" / "info.json"
+    info = json.loads(path.read_text())
+    if problem == "missing":
+        info["features"].pop("observation.images.cam_left_wrist")
+    else:
+        info["features"]["observation.images.wrist_left"] = info["features"]["observation.images.cam_left_wrist"]
+    path.write_text(json.dumps(info))
+    experiment = tmp_path / "pi.yaml"
+    _experiment(experiment, dataset, "pi05")
+    with pytest.raises(ValueError, match="exactly one camera"):
+        config_io.load_train_config(experiment)
