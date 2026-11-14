@@ -8,6 +8,7 @@ observation timestamp. There is no fallback to a zero tactile observation.
 import argparse
 import contextlib
 import json
+import os
 from pathlib import Path
 import sys
 import time
@@ -96,6 +97,8 @@ class StreamingRDP:
 
     def infer(self, observation):
         torch = self.torch
+        if self.last_time is not None and float(observation["timestamp"]) - self.last_time > 0.5:
+            self.reset()
         tactile = self.tactile(observation)
         raw = _build_policy_observation(observation, self.contract)
         transformed = self.input_transform(raw)
@@ -152,7 +155,9 @@ def serve(checkpoint, *, protocol_in=None, protocol_out=None):
                 }
             elif kind == "LOAD":
                 if policy is None:
-                    policy = StreamingRDP(checkpoint, device=message.get("device", "cuda"))
+                    policy = StreamingRDP(
+                        checkpoint, device=message.get("device", os.environ.get("BRAINCO_RDP_DEVICE", "cuda"))
+                    )
                 reply = {
                     "type": "READY",
                     "checkpoint_id": contract["checkpoint_id"],

@@ -36,3 +36,13 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Reactive Diffusion Policy
+
+`src/openpi/rdp/vendor/{conditional_unet1d,conv1d_components,positional_embedding}.py`
+are vendored from <https://github.com/xiaoxiaoxh/reactive_diffusion_policy> at
+`824c5e8de1fd1811106907a04b5f0186e0138c0b`. Imports are redirected to the local
+package. The upstream license and its third-party notices are retained in
+`src/openpi/rdp/vendor/LICENSE`. The BrainCo PCA data adapter, AT, trainer and
+streaming deployment wrapper are an adaptation, not an exact reproduction of
+the paper's robot, observations or hyperparameters.

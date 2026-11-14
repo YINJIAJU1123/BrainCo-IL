@@ -60,7 +60,7 @@ lerobot = { git = "https://github.com/huggingface/lerobot", rev = "0cf864870cf29
 [tool.ruff]
 line-length = 120
 target-version = "py311"
-extend-exclude = ["third_party"]
+extend-exclude = ["third_party", "src/openpi/rdp/vendor"]
 
 [tool.ruff.lint]
 # https://docs.astral.sh/ruff/rules/
