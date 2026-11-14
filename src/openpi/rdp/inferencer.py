@@ -116,7 +116,7 @@ class StreamingRDP:
                 )
                 self.latent = self.ldp.sample(
                     torch.as_tensor(images, device=self.device)[None],
-                    torch.as_tensor(transformed["state"], device=self.device)[None],
+                    torch.as_tensor(transformed["state"], dtype=torch.float32, device=self.device)[None],
                     feedback[:, 0],
                 )
                 self.hidden = None
