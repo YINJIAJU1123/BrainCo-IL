@@ -35,6 +35,10 @@ def serve(checkpoint: str | Path, *, protocol_in=None, protocol_out=None) -> Non
     checkpoint = Path(checkpoint).expanduser().resolve()
     protocol_in = sys.stdin.buffer if protocol_in is None else protocol_in
     protocol_out = sys.stdout.buffer if protocol_out is None else protocol_out
+    if (checkpoint / "rdp_model.json").is_file():
+        from openpi.rdp.inferencer import serve as serve_rdp  # noqa: PLC0415
+
+        return serve_rdp(checkpoint, protocol_in=protocol_in, protocol_out=protocol_out)
     contract = load_policy_contract(checkpoint)
     train_config = None
     policy = None
