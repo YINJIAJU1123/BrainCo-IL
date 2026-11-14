@@ -60,7 +60,7 @@ def train_stage(args, stage, *, at_path=None):
     random.seed(args.seed)
     device = torch.device(args.device)
     if device.type == "cuda":
-        torch.cuda.set_per_process_memory_fraction(args.memory_fraction, device)
+        torch.cuda.set_per_process_memory_fraction(args.memory_fraction, 0 if device.index is None else device.index)
     dataset = RDPDataset(args.cache, args.io_config, args.norm, images=stage == "ldp")
     val = RDPDataset(args.cache, args.io_config, args.norm, split="val", images=stage == "ldp")
     # Evenly cover the entire held-out episode, not just its first static frames.
